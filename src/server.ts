@@ -7,6 +7,17 @@ import { buildPrependHeader, wrapMessage } from "./prepend.js";
 import { classify } from "./tiers.js";
 import { groundingEnabled } from "./grounding.js";
 import { loadTiers, resetTiers, saveTiers } from "./config-store.js";
+import { activeProviderName, providerHasKey, selectProvider } from "./providers/index.js";
+import {
+  clearDecisions,
+  decisionCounts,
+  domainUnit,
+  findLearned,
+  focusKeyOf,
+  learnDecision,
+  loadDecisions,
+  resolvePrecedence,
+} from "./decisions-store.js";
 import {
   endSession,
   getSession,
@@ -23,11 +34,15 @@ try {
 }
 
 const PORT = Number(process.env.BRICK_PORT ?? "7373");
-const MODEL = process.env.BRICK_MODEL ?? "claude-haiku-4-5";
-const hasApiKey = (): boolean => Boolean(process.env.ANTHROPIC_API_KEY);
+// The active provider (Epic R) determines the effective default model and which key gates tier-2.
+const PROVIDER = activeProviderName();
+const MODEL = process.env.BRICK_MODEL ?? selectProvider().defaultModel;
+const hasApiKey = (): boolean => providerHasKey();
 
 // Tier config: persisted (.data/tiers.json), editable via the options page / POST /config/tiers.
 let tiers = await loadTiers();
+// Learned-decision store (Epic 0.2): kept in memory so a hit short-circuits the model at ~0 latency.
+let decisions = await loadDecisions();
 
 type Body = Record<string, unknown>;
 
@@ -127,6 +142,7 @@ async function handle(req: IncomingMessage, res: ServerResponse): Promise<void> 
     case "GET /health":
       return sendJson(res, 200, {
         ok: true,
+        provider: PROVIDER,
         model: MODEL,
         hasApiKey: hasApiKey(),
         grounding: groundingEnabled(),
@@ -135,9 +151,11 @@ async function handle(req: IncomingMessage, res: ServerResponse): Promise<void> 
     case "GET /config":
       return sendJson(res, 200, {
         tiers,
+        provider: PROVIDER,
         model: MODEL,
         hasApiKey: hasApiKey(),
         grounding: groundingEnabled(),
+        decisions: decisionCounts(decisions),
       });
 
     case "POST /config/tiers": {
@@ -186,17 +204,35 @@ async function handle(req: IncomingMessage, res: ServerResponse): Promise<void> 
       if (!target) return sendJson(res, 400, { error: "url required" });
       const focus = await focusFor(body);
       const tier = classify(target, tiers);
+      const focusKey = focusKeyOf(focus);
+      // A per-page unit (e.g. a YouTube video id) lets high-variance domains learn per page (0.7).
+      const pageUnit = str(body, "unit");
+      const learned = findLearned(decisions, focusKey, target, pageUnit);
+      // Precedence: Tier-1 block > learned block > learned allow > Tier-3 allow > model (0.2).
+      const pre = resolvePrecedence(tier, learned);
 
-      let result: { decision: string; reason: string; confidence: number; stub: boolean };
-      if (tier === "tier1") {
-        result = { decision: "block", reason: "Tier-1 always-blocked site.", confidence: 1, stub: false };
-      } else if (tier === "tier3") {
-        result = { decision: "allow", reason: "Tier-3 always-allowed site.", confidence: 1, stub: false };
+      let result: {
+        decision: string;
+        reason: string;
+        confidence: number;
+        stub: boolean;
+        via?: string;
+        learned?: boolean;
+      };
+      if (pre) {
+        result = {
+          decision: pre.decision,
+          reason: pre.reason,
+          confidence: pre.confidence,
+          stub: false,
+          via: pre.via,
+          learned: pre.via === "learned",
+        };
       } else if (!hasApiKey()) {
-        // PLACEHOLDER: no key → don't block, but mark as a stub so the UI can show it.
+        // PLACEHOLDER: no provider key → don't block, but mark as a stub so the UI can show it.
         result = {
           decision: "allow",
-          reason: "(stub — no ANTHROPIC_API_KEY; tier-2 not adjudicated)",
+          reason: "(stub — no provider API key; tier-2 not adjudicated)",
           confidence: 0,
           stub: true,
         };
@@ -206,8 +242,41 @@ async function handle(req: IncomingMessage, res: ServerResponse): Promise<void> 
       }
 
       await recordAdjudication(target, result.decision, tier);
-      return sendJson(res, 200, { ...result, tier, url: target, focus });
+      return sendJson(res, 200, { ...result, tier, url: target, focus, focusKey });
     }
+
+    case "POST /decisions/learn": {
+      const body = await readJson(req);
+      const decision = str(body, "decision");
+      if (decision !== "allow" && decision !== "block") {
+        return sendJson(res, 400, { error: "decision must be allow|block" });
+      }
+      const target = str(body, "url");
+      const scope = str(body, "scope") === "page" ? "page" : "domain";
+      const via = str(body, "via") === "correction" ? "correction" : "clarify";
+      // Page-scope needs an explicit unit (e.g. video id); domain-scope derives it from the URL.
+      const unit = str(body, "unit") ?? (target ? domainUnit(target) : undefined);
+      if (!unit) return sendJson(res, 400, { error: "url or unit required" });
+      const focus = await focusFor(body);
+      const record = await learnDecision({
+        focusKey: focusKeyOf(focus),
+        scope,
+        unit,
+        decision,
+        via,
+      });
+      decisions = await loadDecisions();
+      return sendJson(res, 200, { learned: record, counts: decisionCounts(decisions) });
+    }
+
+    case "POST /decisions/clear": {
+      await clearDecisions();
+      decisions = await loadDecisions();
+      return sendJson(res, 200, { ok: true, counts: decisionCounts(decisions) });
+    }
+
+    case "GET /decisions":
+      return sendJson(res, 200, { decisions, counts: decisionCounts(decisions) });
 
     case "POST /prepend": {
       const body = await readJson(req);
@@ -234,6 +303,6 @@ createServer((req, res) => {
   });
 }).listen(PORT, "127.0.0.1", () => {
   process.stdout.write(
-    `brick service on http://127.0.0.1:${PORT}  (model: ${MODEL}, key: ${hasApiKey() ? "set" : "MISSING — tier-2 stubbed"})\n`,
+    `brick service on http://127.0.0.1:${PORT}  (provider: ${PROVIDER}, model: ${MODEL}, key: ${hasApiKey() ? "set" : "MISSING — tier-2 stubbed"})\n`,
   );
 });
