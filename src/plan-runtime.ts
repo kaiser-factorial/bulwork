@@ -12,6 +12,22 @@ import type { FocusTask, Step, SwapMode, WorkBlock, WorkloadPlan } from "./types
 // unchanged, anchored to whichever block is live. Budgets are advisory in Epic A (reported, never
 // enforced); swap policy/watchers arrive with Epic B.
 
+/** Budget escalation (Epic C1, §6): T-minus heads-up → T-0 nudge → grace re-nudge. Never a wall —
+ *  levels drive notifications, the queue still only moves per the swap policy. */
+export type EscalationLevel = "none" | "t-minus" | "t-0" | "grace";
+
+const TMINUS_MIN = Number(process.env.BRICK_TMINUS_MIN ?? "5"); // heads-up this long before budget end
+const GRACE_MIN = Number(process.env.BRICK_GRACE_MIN ?? "5"); // T-0 → grace re-nudge after this long over
+
+export function escalationFor(elapsedMinutes: number, budgetMinutes?: number): EscalationLevel {
+  if (budgetMinutes == null) return "none";
+  const remaining = budgetMinutes - elapsedMinutes;
+  if (remaining > TMINUS_MIN) return "none";
+  if (remaining > 0) return "t-minus";
+  if (elapsedMinutes < budgetMinutes + GRACE_MIN) return "t-0";
+  return "grace";
+}
+
 export interface PlanView extends WorkloadPlan {
   stateVersion: number;
   /** Advisory budget readout for the active block (Epic A): elapsed vs budget, minutes. */
@@ -21,6 +37,8 @@ export interface PlanView extends WorkloadPlan {
     budgetMinutes?: number;
     remainingMinutes?: number;
     overBudget: boolean;
+    /** Escalation level for the active block's budget (Epic C1). */
+    escalation: EscalationLevel;
   };
   /** Present while an auto-advance can still be reverted (Epic B3). */
   undo?: { fromBlockId: string; availableUntil: string };
@@ -127,6 +145,9 @@ async function watchTick(): Promise<void> {
 
     // Expire a lapsed undo window (the advance is committed).
     if (undoState && Date.now() > undoState.deadline) undoState = null;
+
+    // Escalation clock (C1): bump stateVersion when the level transitions.
+    checkEscalationTransition(block);
 
     // Poll the active block's evaluators; sync met flags into the plan (persist on change).
     let changed = false;
@@ -264,9 +285,24 @@ export function planView(): PlanView | null {
           ? Math.round((block.budgetMinutes - elapsed) * 10) / 10
           : undefined,
       overBudget: block.budgetMinutes != null && elapsed > block.budgetMinutes,
+      escalation: escalationFor(elapsed, block.budgetMinutes),
     };
   }
   return view;
+}
+
+// stateVersion bumps on escalation-level transitions too (C1 AC), so clients can diff a single
+// number for "anything changed". Tracked per block; checked by the watcher tick.
+let lastEscalation: { blockId: string; level: EscalationLevel } | null = null;
+
+function checkEscalationTransition(block: WorkBlock): void {
+  if (!block.startedAt) return;
+  const elapsed = (Date.now() - new Date(block.startedAt).getTime()) / 60000;
+  const level = escalationFor(elapsed, block.budgetMinutes);
+  if (!lastEscalation || lastEscalation.blockId !== block.id || lastEscalation.level !== level) {
+    lastEscalation = { blockId: block.id, level };
+    bump();
+  }
 }
 
 export function getStateVersion(): number {

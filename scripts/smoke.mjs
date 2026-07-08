@@ -272,6 +272,8 @@ try {
       OPENROUTER_API_KEY: "",
       BRICK_WATCH_INTERVAL_MS: "150", // fast watcher ticks so Epic-B checks settle in <1s
       LEDGER_BIN: FAKE_LEDGER.bin,
+      BRICK_TMINUS_MIN: "0.005", // 0.3s — fractional escalation thresholds for the C1 checks
+      BRICK_GRACE_MIN: "0.005",
     },
     stdio: "ignore",
   });
@@ -555,6 +557,28 @@ try {
   await settle();
   bplan = (await get("/plan")).plan;
   check("ledger: next-action change auto-advanced the block", bplan.activeBlockId === bplan.blocks[1].id && bplan.blocks[0].stopConditions[0].met === true);
+  await post("/plan/end", {});
+
+  // ---------- Epic C1: escalation clock — levels advance at the thresholds, version bumps ----------
+  // budget 0.01min (0.6s), thresholds 0.005min (0.3s): none → t-minus (~0.3s) → t-0 (~0.6s) → grace (~0.9s)
+  const cp = await post("/plan/start", {
+    blocks: [{ task: "escalating block", budgetMinutes: 0.01 }, { task: "calm block" }],
+  });
+  const v0c = cp.plan.stateVersion;
+  const seen = [];
+  const deadlineC = Date.now() + 2500;
+  while (Date.now() < deadlineC) {
+    const p = (await get("/plan")).plan;
+    if (!p) break;
+    const lvl = p.active?.escalation;
+    if (lvl && seen[seen.length - 1] !== lvl) seen.push(lvl);
+    if (lvl === "grace") break;
+    await sleep(100);
+  }
+  const order = ["none", "t-minus", "t-0", "grace"];
+  const seenOrdered = seen.every((l, i) => i === 0 || order.indexOf(l) > order.indexOf(seen[i - 1]));
+  check(`escalation levels advance in order (saw: ${seen.join("→")})`, seenOrdered && seen.includes("t-minus") && seen.includes("t-0") && seen.includes("grace"));
+  check("stateVersion bumps on level transitions", (await get("/plan")).plan.stateVersion > v0c);
   await post("/plan/end", {});
 } finally {
   if (srv) srv.kill();
