@@ -428,3 +428,30 @@ Branch `workload-plan-layer` (off master post-merge of PR #1).
 - 🖐 Browser gate (Phase A): 3×1-min plan from the popup — badge `1/3`→`2/3`, step toggle persists
   across popup reopen, advance/end, repeat block reappears once.
 
+## Plan layer — Epic T (workflow templates) — DONE 2026-07-08
+- **T1 types + store**: `WorkflowTemplate`/`Slot`/`FocusRef`/`TemplateBlock` in `types.ts`
+  (**documented divergence:** template `steps` are labels, not `Step[]` — templates never carry
+  done-state); `src/template-store.ts` with `TemplateStore` seam + `LocalTemplateStore`
+  (`.data/templates.json`, invalid→empty, cap 100).
+- **T2 expansion**: pure `expandTemplate` — slot binding (explicit binding > slot
+  `defaultProjectId` > clear throw), pattern `repeat: N` exact, `"until-end-of-day"` adds whole
+  patterns while their budget fits before local midnight (≥1 always; requires budgets; 48-block
+  cap). `POST /plan/from-template {templateId, bindings}` resolves each bound `focusRef` (explicit
+  task or Ledger project) and launches via the Epic-A `startPlan`.
+- **T3 CRUD + save-current**: `GET/POST /templates` (full body or `fromCurrent:{name,
+  parameterize}`), `DELETE /templates/:id` (first parameterized route; CORS now allows DELETE).
+  Pure `liftPlanToTemplate` lifts distinct projects into slots A/B/… when parameterizing, keeps
+  explicit tasks pre-bound, drops requeued `~N` clones (the repeat spec regenerates them).
+- **T4 UI**: popup picker gains a **saved template** row — per-slot binding (project select with
+  free-text task fallback, `defaultProjectId` preselected) → start; plan pane gains **☆ save plan
+  as template** (name prompt + parameterize confirm). Options page lists/deletes templates.
+- **Corpus**: templates + patterns sections added to `help/day-plans.md`.
+- **Verified:** typecheck + node --check clean; **smoke 77/77** (15 new: until-end-of-day at a
+  fixed 09:00 → exactly 3 patterns, alternation with bindings, unbound-slot throw, default-slot
+  fill, numeric repeat, lift-parameterize/keep-tasks/drop-clones, CRUD round-trip, from-template
+  A,B,A,B launch + session anchor, save-current → zero-slot relaunch **parity**, unbound-launch
+  clear error, DELETE).
+- 🖐 Browser gate (Phase T): save "alternating deep work" (A/B), relaunch binding two projects →
+  plan alternates; save a hand-built plan → relaunch parity; delete from options removes it from
+  the popup picker.
+

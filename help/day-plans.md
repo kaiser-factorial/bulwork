@@ -41,6 +41,22 @@ During a plan the toolbar badge shows the active block's remaining budget minute
 shows the queue position — "2/3 · lab check · 9m left". The red/green work/break coloring and the
 grace ⏸ indicator work as usual.
 
+## Workflow templates — saving and re-running plans
+
+A template is a saved plan skeleton you can re-run without rebuilding it. While a plan is running,
+the popup's **☆ save plan as template** button stores it — choose **parameterize** to lift the
+plan's projects into named slots (A, B, …) so you can re-bind them to different projects at launch,
+or keep it bound as-is. Saved templates appear in the popup's **saved template** row: pick one, bind
+any slots (choose a project per slot, or type a task), and **▶ start from template**. Templates are
+managed (listed and deleted) on the options page under **Workflow templates**.
+
+## Alternating and repeating patterns
+
+A template can carry a pattern — repeat its block list N times, or **until end of day** (whole
+patterns are added while their total budget still fits before midnight; until-end-of-day requires a
+budget on every block). The classic use: two slots A and B with 2-hour blocks and until-end-of-day
+gives you A,B,A,B… across the whole day, re-bindable to any pair of projects each morning.
+
 ## Where is my plan stored?
 
 Locally in the service's `.data/plan.json` — the same Ledger-native shape the plan will eventually
