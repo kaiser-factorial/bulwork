@@ -1,29 +1,44 @@
-# brick-adjudicator
+# brick
 
-**BRICK MODE — Phase 1 prototype.** A standalone, focus-task-aware **allow/block adjudicator**.
-It pulls the active project's **Next Action** from The Ledger, asks **Claude Haiku 4.5** whether a
-given URL is consistent with that focus task, and returns a structured verdict — with **no daemon,
-no network interception, and no enforcement**. The whole point is to validate the novel core (does
-context-aware adjudication actually work?) before any macOS plumbing.
+**BRICK MODE** — the focus-enforcement pillar of the Ledger project-OS. You declare one focus task
+(ideally a Ledger project's **Next Action**), start a timed work session, and BRICK decides — per
+page — whether what you're looking at serves that focus. Clear distractions are blocked, work is
+never touched, and genuinely ambiguous pages get a **question** instead of a wall. Everywhere, the
+governing principle is **a false block costs more than a false allow**: when unsure it asks or
+allows, and every failure mode (service down, provider outage, malformed model output) degrades to
+*allow*, never to a block.
 
-See `../ledger/docs/BRICK_MODE_PLAN.md` (Phase 1) for where this fits.
+Two parts: a **local service** (the brain, `:7373`) and an **MV3 browser extension** (the
+enforcement surface — no secrets, no AI, asks the service for everything).
 
 ```
-Ledger active project + Next Action ──┐
-                                      ├─► Claude Haiku 4.5 ─► { decision, reason, confidence }
-                 URL (+ optional title)┘
+Focus (Ledger Next Action or free text) ──┐
+                                          ├─► tiers → learned decisions → model (allow/block/ask)
+URL + title (origin+path only, no query) ─┘         (OpenRouter or Anthropic, configurable model)
 ```
+
+What's built today: tier lists (always-block / adjudicated / always-allow) · Pomodoro sessions with
+red/green badge, phase border flash + optional sound cues · the **ask → clarify-and-learn** loop
+(remembered per focus, with explicit precedence) · honesty lever (mark a page off-task/on-topic) ·
+per-video judging on YouTube + a rabbit-hole time nudge · "one more minute" grace that **pauses the
+work clock** (capped, escalating tint) · **day plans** (an ordered queue of blocks with budgets,
+steps, repeats) and **workflow templates** (save/re-run parameterized plans) · a grounded in-app
+**help agent** ("Ask about BRICK") · an AI-chat focus-prepend pill. See
+`../ledger/docs/BRICK_MODE_PLAN.md` for the roadmap and `WORKLOAD_DESIGN.md` for the current
+design.
 
 ## Setup
 
 ```bash
 cd brick
 npm install
-cp .env.example .env      # then add your ANTHROPIC_API_KEY
+cp .env.example .env      # add OPENROUTER_API_KEY (default provider) and/or ANTHROPIC_API_KEY
 ```
 
-`.env` is auto-loaded. `LEDGER_BIN` defaults to the repo's `ledger` binary; override if yours lives
-elsewhere.
+`.env` is auto-loaded. The adjudicator runs through **OpenRouter by default** (one key, many models,
+model picker on the extension's options page); the native Anthropic path is kept as a fallback and
+selected automatically when only `ANTHROPIC_API_KEY` is present. `LEDGER_BIN` defaults to the repo's
+`ledger` binary; override if yours lives elsewhere.
 
 ## Usage
 
@@ -66,10 +81,15 @@ npm run dev -- https://twitter.com/home --dry-run
 ```bash
 npm run eval                 # runs examples/cases.json, prints a table + accuracy
 npm run eval -- my-cases.json
+npm run eval:corrections     # score against YOUR real clarify answers + corrections
+npm run cases:export         # just export the learned decisions as cases (.data/corrections.cases.json)
 ```
 
 `cases.json` is an array of `{ "task", "url", "title?", "expected?" }`. Add 20–30 URLs from your own
-browsing to tune the prompt against reality. Cases with an `expected` decision are scored.
+browsing to tune the prompt against reality. Cases with an `expected` decision are scored. Better
+still: every clarify answer and honesty-lever correction you make in the browser is recorded, and
+`eval:corrections` scores the adjudicator against them — the gatekeeper is measured against *your*
+judgment over time.
 
 ### AI-chat prepend header
 
@@ -98,21 +118,28 @@ them. `--strict` opts into the original decline-and-redirect phrasing; the defau
 the assistant check in before going off-task. Either way the real enforcement is the URL adjudicator
 + tier lists, not this.
 
-## Local service + browser extension (Phase 2)
+## Local service + browser extension
 
-The adjudicator + prepend are now also exposed as a **local HTTP service** that a **Manifest-V3
-browser extension** drives — the first real enforcement surface.
+The adjudicator + prepend are exposed as a **local HTTP service** that a **Manifest-V3 browser
+extension** drives.
 
 ```bash
 npm run serve     # local service on http://127.0.0.1:7373 (the "brain")
-npm run smoke     # build + assert the service end-to-end (no API key needed) — 7 checks
+npm run smoke     # build + self-test the whole service end-to-end — hermetic, key-free, ledger-free
 ```
 
 Then load `extension/` unpacked in Chrome — full walkthrough in **[EXTENSION.md](./EXTENSION.md)**.
 The extension holds no secrets and runs no AI: it asks the service for every decision. Tier-1 sites
-are blocked instantly (`declarativeNetRequest`), Tier-2 is adjudicated per-navigation, Tier-3 is
-untouched; a Pomodoro timer gates the work/break phases; AI-chat pages get an opt-in "↳ prepend
-focus" pill. Sessions log to `.data/sessions.jsonl` (Firestore sync is stubbed — needs creds).
+block instantly (`declarativeNetRequest`), Tier-2 is adjudicated per-navigation (and per-**video** on
+YouTube), Tier-3 is untouched; the Pomodoro gates work/break; AI-chat pages get the opt-in "↳ prepend
+focus" pill; the options page holds the model picker, tier lists, focus tuning, feedback toggles,
+templates, and the "Ask about BRICK" help panel. All state is local, human-readable JSON under
+`.data/` (tiers, settings, learned decisions, plan, templates, `sessions.jsonl`).
+
+**Day plans:** from the popup, queue blocks (`task | minutes` per line) or launch a saved template;
+the active block *is* a normal focus session, budgets are advisory, `advance now` walks the queue.
+Auto-detected stop conditions (git push, Ledger next-action change) and escalating swap
+notifications are designed (`WORKLOAD_DESIGN.md` §5–§12) and land as Epics B/C.
 
 **Memory-Hub grounding (fast-follow):** set `BRICK_MEM_BIN` to enrich adjudication with the project's
 own context via the Unified Memory Hub's `mem` CLI. Off by default; fails open.
@@ -125,9 +152,12 @@ own context via the Unified Memory Hub's `mem` CLI. Off by default; fails open.
   silently guesses. A chosen project's task is its **Next Action**, falling back to its status note,
   then its name. This is BRICK's keystone — the focus task *is* the Ledger Next Action, not a string
   retyped each session.
-- **Adjudication** (`src/adjudicate.ts`): Claude Haiku 4.5 via the Anthropic SDK, with a few-shot
-  prompt (`src/prompt.ts`) and **forced tool use** to guarantee a structured
-  `{ decision, reason, confidence }` verdict. Latency is logged (target < 500ms).
+- **Adjudication** (`src/adjudicate.ts` behind `src/providers/*`): the configured model — OpenRouter
+  by default, Anthropic as the fallback path — with a few-shot prompt (`src/prompt.ts`) and **forced
+  tool use** guaranteeing a structured `{ decision, reason, confidence }` verdict, where decision is
+  `allow | block | ask` (`ask` = the focus is too vague to judge → the clarify card, never a wall).
+- **Precedence before the model** (`src/decisions-store.ts`): **Tier-1 block > learned block >
+  learned allow > Tier-3 allow > model** — remembered answers short-circuit instantly, free.
 - **Conservative-allow**: a `block` whose confidence is below `BRICK_MIN_BLOCK_CONFIDENCE`
   (default 0.6) is downgraded to `allow`, so a shaky call never interrupts real work.
 
@@ -135,21 +165,26 @@ own context via the Unified Memory Hub's `mem` CLI. Off by default; fails open.
 
 | Variable | Purpose | Default |
 |---|---|---|
-| `ANTHROPIC_API_KEY` | Adjudicator auth (Tier-2 stubs to allow without it) | _required for real adjudication_ |
+| `OPENROUTER_API_KEY` | Default provider auth (Tier-2 stubs to allow with no key at all) | — |
+| `ANTHROPIC_API_KEY` | Fallback provider auth (used automatically if it's the only key) | — |
+| `BRICK_PROVIDER` | Force `openrouter` or `anthropic` | auto by key presence |
+| `BRICK_MODEL` | Seed model id (options-page choice overrides it) | provider default |
 | `LEDGER_BIN` | Path to the `ledger` CLI | repo path |
-| `BRICK_MODEL` | Adjudicator model | `claude-haiku-4-5` |
 | `BRICK_MIN_BLOCK_CONFIDENCE` | Below this, a block becomes an allow | `0.6` |
 | `BRICK_PORT` | Local service port | `7373` |
 | `BRICK_MEM_BIN` | Memory-Hub `mem` command for grounding (unset = off) | _unset_ |
-| `BRICK_DATA_DIR` | Where `sessions.jsonl` is written | `brick/.data/` |
+| `BRICK_DATA_DIR` | Where all `.data/*` state lives | `brick/.data/` |
+| `BRICK_HELP_DIR` | Help-agent corpus directory | `brick/help/` |
 
 ## Status & what's next
 
-**Built (Phases 1–2, headless):** adjudicator, prepend, local service, MV3 extension, tiers,
-Pomodoro sessions, JSONL logging; Memory-Hub grounding wired (inert until `BRICK_MEM_BIN`). See
-`HANDOFF.md` and `SESSION_LOG.md`.
+**Built:** Phases 1–2 (adjudicator, prepend, service, extension, tiers, Pomodoro) + the full
+**workload early wave** (provider seam/model picker, gatekeeper quality: ask/clarify/learned/
+honesty/per-video/rabbit-hole, session feedback, focus-time integrity, help agent) + the plan
+layer's **Epic A** (day-plan queue) and **Epic T** (workflow templates). Verified by the hermetic
+`npm run smoke` plus live passes; see `HANDOFF.md` and `SESSION_LOG.md`.
 
-**Needs you:** (1) `ANTHROPIC_API_KEY` to validate Tier-2 accuracy (`npm run eval`) and stop stubbing;
-(2) a browser to load/verify the extension on live chat sites; (3) Phase 3 (Focus UI *inside* the
-Ledger app + session-as-Ledger-object) and Phase 4 (privileged daemon + bypass resistance) — both
-deliberately not started here (mature-app edits / native macOS work that can't be verified headless).
+**Next:** Epic **B** (auto-detected stop conditions: git/ledger watchers, swap policy, auto-advance
++ undo) → **C** (escalating switch notifications: popup/in-page/OS) → **D** (plan/templates as
+first-class Ledger objects — the only epic that edits the mature Ledger app). Further out: Phase 3
+(Focus UI inside the Ledger app) and Phase 4 (privileged daemon + bypass resistance).

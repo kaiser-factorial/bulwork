@@ -10,8 +10,9 @@ popup / content scripts  ──►  background worker  ──►  brick service 
 
 ## Run it
 
-1. **Start the service** (needs `ANTHROPIC_API_KEY` in `brick/.env` for real Tier-2 adjudication;
-   without it Tier-2 is a clearly-flagged stub that allows):
+1. **Start the service** (needs `OPENROUTER_API_KEY` — or `ANTHROPIC_API_KEY` for the fallback
+   provider — in `brick/.env` for real Tier-2 adjudication; without any key Tier-2 is a
+   clearly-flagged stub that allows):
    ```bash
    cd brick
    npm install      # once
@@ -32,12 +33,24 @@ popup / content scripts  ──►  background worker  ──►  brick service 
 | **Tier 2** (conditional) | nytimes, youtube, twitter, anything else | content script asks the service → Claude adjudicates against your focus task → block page if off-task |
 | **Tier 3** (always allowed) | github, stackoverflow, MDN, localhost… | never touched |
 
-- **Pomodoro:** work block → break (restrictions lifted) → work, on `chrome.alarms`. Timer shown in the popup.
+- **Pomodoro:** work block → break (restrictions lifted) → work, on `chrome.alarms`. Timer in the
+  popup; red/green countdown badge on the toolbar; a border flash (+ optional sound cue) on every
+  phase flip.
+- **Ambiguous pages:** if your focus is too vague to judge, a **clarify card** asks (yes/no +
+  "remember for this focus") instead of blocking. The popup's **⚑ off-task / ✓ on-topic** buttons
+  correct any verdict; answers persist per focus (options → gatekeeper readout / clear).
+- **YouTube:** judged per **video** (SPA-aware re-adjudication on video changes); long stints on
+  flagged domains get a rabbit-hole check-in.
+- **Grace:** "just 1 more minute" pauses the work clock (badge shows ⏸) up to a per-block cap; each
+  repeat deepens the tint.
+- **Day plans & templates:** queue blocks from the popup (`task | minutes` per line) or launch a
+  saved template (binding slots to projects); badge shows queue position + block budget.
 - **AI chat (claude.ai / Gemini / ChatGPT):** a focus pill appears bottom-right with a **"↳ prepend focus"**
   button that inserts the soft-nudge header into the composer. (Auto-on-send interception is a future
   per-site enhancement — see `SESSION_LOG.md` DIVERGENCE 4.)
-- **Settings page** (`chrome://extensions` → BRICK MODE → Details → Extension options): service status +
-  current tier lists.
+- **Settings page** (`chrome://extensions` → BRICK MODE → Details → Extension options): service
+  status, **adjudicator model picker**, "Ask about BRICK" help panel, session feedback toggles,
+  focus tuning (per-page + rabbit-hole domains), tier lists, templates, gatekeeper readout.
 
 ## Step-by-step test (first run)
 
@@ -79,12 +92,15 @@ quickly while testing.
 
 ## Placeholders / not-yet-wired
 
-- **No `ANTHROPIC_API_KEY`** → Tier-2 returns `allow` with `stub:true` (the block page and options page
-  say so). Tier-1/Tier-3 still work without a key.
-- **Firestore session sync** is stubbed; sessions log locally to `brick/.data/sessions.jsonl`.
+- **No provider key at all** → Tier-2 returns `allow` with `stub:true` (the block page and options
+  page say so). Tier-1/Tier-3 and learned decisions still work without a key.
+- **Plan auto-advance** (stop-condition watchers, swap policy, escalating switch notifications) is
+  designed but not built — Epics B/C. Budgets are advisory; advancing is manual.
+- **Firestore / Ledger-native store** is stubbed; sessions log locally to `brick/.data/sessions.jsonl`
+  and plans/templates live in `brick/.data/*.json` — Epic D.
 - **Memory-Hub grounding** (sharper adjudication) is inert unless `BRICK_MEM_BIN` is set — see README.
-- **Not browser-verified:** the extension was written and statically checked headless; content-script
-  behavior on live claude.ai/Gemini/ChatGPT DOMs may need per-site tuning.
+- **Per-site chat-composer tuning:** the prepend pill's insert may need adjustment on live
+  claude.ai/Gemini/ChatGPT DOM changes.
 
 ## Troubleshooting
 
