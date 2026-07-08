@@ -82,6 +82,15 @@ patterns are added while their total budget still fits before midnight; until-en
 budget on every block). The classic use: two slots A and B with 2-hour blocks and until-end-of-day
 gives you A,B,A,B… across the whole day, re-bindable to any pair of projects each morning.
 
+## Escalating budget notifications
+
+A block's budget escalates instead of walling you off: about 5 minutes before it ends you get a
+quiet heads-up (amber badge tint + a banner in the popup); at time-up an OS notification and an
+in-page corner card fire ("Time's up on A — next: B?" with **Advance / Stay**); a few minutes past
+budget a more insistent re-nudge fires and the badge goes deep red. Each nudge fires exactly once
+per level. When a stop-condition auto-advances the queue, you're notified with an **↩ Undo** right
+on the page. OS notifications reach you even when the browser is in the background.
+
 ## Where is my plan stored?
 
 Locally in the service's `.data/plan.json` — the same Ledger-native shape the plan will eventually

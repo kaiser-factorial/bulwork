@@ -488,3 +488,30 @@ Branch `workload-plan-layer` (off master post-merge of PR #1).
 - NOTE: real Ledger repos live at `~/Projects/ledger_root/{ledger,ledger-cli,ledger-mcp}` — the
   handoff's `../ledger/...` sibling paths are stale; matters for Epic D.
 
+## Plan layer — Epic C (escalating notifications) — DONE 2026-07-08
+- **C1 escalation clock** (`plan-runtime.ts`): `escalationFor(elapsed, budget)` →
+  `none | t-minus | t-0 | grace`, thresholds tunable via `BRICK_TMINUS_MIN` / `BRICK_GRACE_MIN`
+  (default 5 min each); exposed as `planView.active.escalation`; the watcher tick bumps
+  `stateVersion` on level transitions so clients can diff one number.
+- **C2 NotificationDispatcher** (`background.js`): 30s ticks during a plan; each tick derives
+  events — level transitions, auto-switch (activeBlockId changed with an undo window), manual
+  `ready` — and **dedups by a persisted `(plan, block, event)` key in `chrome.storage.local`**, so
+  each fires once even across service-worker restarts.
+- **C3 OS notifications**: `notifications` permission; toasts for T-0, grace re-nudge, auto-switch
+  (with "undo available"), and ready-to-advance. T-minus stays quiet (badge/popup only, per §6).
+- **C4 in-page switch card** (`content-guard.js` via the U1 overlay): `brick:switch` → bottom-right
+  non-blocking card ("Time's up on A — next: B?") with **Advance / Stay** (or **↩ Undo** after an
+  auto-switch); buttons hit the background's plan routes. Sent to the active tab only.
+- **C5 visuals**: badge colour tracks the ladder (amber T-minus → orange T-0 → deep red grace);
+  popup escalation banner ("budget ends in Xm · next: …" / "time's up" / "over by Xm — advance?").
+  The B4 ready-glow + undo button complete the Appendix-B picture.
+- **Verified:** smoke **108/108** — the C1 check walks a 0.6s-budget block through
+  `none→t-minus→t-0→grace` in order with version bumps (fractional thresholds via env). Extension
+  JS + manifest all check clean (dispatcher/card/banner are browser-🖐).
+- 🖐 Browser gate (Phase C): 1–2-min budget block → T-minus/T-0/grace each fire once across
+  popup + in-page + OS (worker console shows one dispatch per level); auto mode's undo works from
+  the page card; OS toast arrives with the browser backgrounded.
+
+**The plan layer is now A ✓ T ✓ B ✓ C ✓ — only Epic D (Ledger-native store) remains, which needs
+Corina's machine (ledger_root repos + Firestore creds).**
+
