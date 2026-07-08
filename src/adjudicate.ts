@@ -1,7 +1,14 @@
 import Anthropic from "@anthropic-ai/sdk";
+import { outputLeakedCanary, onShieldEvent, emitShieldEvent } from "@local/shield";
 import type { AdjudicationInput, AdjudicationResult, Verdict } from "./types.js";
-import { SYSTEM_PROMPT, buildUserPrompt } from "./prompt.js";
+import { SYSTEM_PROMPT, SYSTEM_CANARY, buildUserPrompt } from "./prompt.js";
 import { groundFocus } from "./grounding.js";
+
+onShieldEvent((ev) => {
+  process.stderr.write(
+    `[shield:${ev.type}] source=${ev.source} score=${ev.score?.toFixed(2) ?? "n/a"} patterns=${ev.patterns?.join(",") ?? ""}\n`,
+  );
+});
 
 const MODEL = process.env.BRICK_MODEL ?? "claude-haiku-4-5";
 const MIN_BLOCK_CONFIDENCE = Number(process.env.BRICK_MIN_BLOCK_CONFIDENCE ?? "0.6");
@@ -52,6 +59,14 @@ export async function adjudicate(input: AdjudicationInput): Promise<Adjudication
     tool_choice: { type: "tool", name: "record_verdict" },
   });
   const latencyMs = Date.now() - start;
+
+  // Check for canary leak before trusting any output — a leak means the model was
+  // manipulated into echoing its system context, which invalidates the verdict.
+  const textBlocks = response.content.filter((b) => b.type === "text").map((b) => (b as { type: "text"; text: string }).text).join("");
+  if (outputLeakedCanary(textBlocks, SYSTEM_CANARY)) {
+    emitShieldEvent({ type: "canary_leaked", source: input.url, detail: textBlocks.slice(0, 200) });
+    return { decision: "block", reason: "Security: canary leak detected — verdict suppressed.", confidence: 1, focus: input.focus, url: input.url, title: input.title, model: response.model, latencyMs: Date.now() - start, downgraded: false };
+  }
 
   const toolUse = response.content.find((b) => b.type === "tool_use");
   if (!toolUse || toolUse.type !== "tool_use") {

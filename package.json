@@ -20,7 +20,8 @@
     "smoke": "npm run build && node scripts/smoke.mjs"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "latest"
+    "@anthropic-ai/sdk": "latest",
+    "@local/shield": "file:../shield"
   },
   "devDependencies": {
     "@types/node": "^22.10.0",
