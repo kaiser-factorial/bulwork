@@ -75,6 +75,30 @@
       session picks up the changes.
     </p>
 
+    <h2>Session feedback</h2>
+    <div class="row" style="gap:18px;flex-wrap:wrap">
+      <label class="muted" style="display:flex;align-items:center;gap:6px">
+        <input type="checkbox" id="fbBorder" style="width:auto" /> border flash on work/break
+      </label>
+      <label class="muted" style="display:flex;align-items:center;gap:6px">
+        <input type="checkbox" id="fbSound" style="width:auto" /> sound cues
+      </label>
+      <span class="row" style="gap:6px">
+        <label class="muted" for="fbBorderSec">border seconds:</label>
+        <input type="text" id="fbBorderSec" style="width:60px" inputmode="numeric" />
+      </span>
+    </div>
+    <div>
+      <button id="saveFeedback">save feedback settings</button>
+      <button id="testSound" style="margin-left:8px">🔈 test sound</button>
+      <span id="fbSaved" class="muted"></span>
+    </div>
+    <p class="muted">
+      Red border entering work, green entering break; it fades and never blocks clicks. Sound is a low
+      focus tone into work, a light twinkle into break — off until you opt in. Stored locally in the
+      browser (no service round-trip); takes effect on the next transition.
+    </p>
+
     <h2>Focus tuning</h2>
     <div class="label muted">Per-page domains — judged per page/video, not whole-site (default: YouTube)</div>
     <textarea id="pageScope" rows="3" spellcheck="false" placeholder="youtube.com"></textarea>

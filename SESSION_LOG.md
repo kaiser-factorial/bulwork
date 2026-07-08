@@ -317,6 +317,29 @@ early wave (Epics R, 0, U). All on branch `worktree-workload-early-wave` (draft 
 - 🖐 Browser-only: YouTube SPA re-adjudication on real video changes; rabbit-hole nudge at a 2-min test
   threshold; options focus-tuning save.
 
+### Epic S — session-state feedback (S1/S2/S3 DONE, 2026-07-08; browser-verify pending)
+- **S1 border flash** (`content-guard.js`): on the existing `brick:phase` broadcast, a 6px inset
+  border via the U1 helper — **red entering work, green entering break** — fades in/out over a
+  configurable window (default 10s). `pointer-events:none` (never blocks clicks);
+  `prefers-reduced-motion` = steady fade (U1 handles it). Enforcement overlays (`brick:catch`)
+  arriving after a flip replace the border — enforcement wins over decoration.
+- **S2 sound cues** (`background.js` + new `offscreen.html/js`; manifest gains `offscreen`):
+  `broadcastPhase` → `playCue` → a singleton `chrome.offscreen` document (AUDIO_PLAYBACK reason —
+  sidesteps timer-fired autoplay limits) plays **once per transition**, never per-tab.
+  **DIVERGENCE (documented):** cues are **synthesized with WebAudio** instead of bundled clips — a
+  low two-note "settle in" (330→220Hz) entering work, an ascending twinkle (660/880/1320Hz) entering
+  break. No binary assets, no `web_accessible_resources`, tunable in code.
+- **S3 options toggles** (`options.html/js`): border on/off (default ON), sound on/off (default
+  **OFF** until opted in), border seconds (1–60) — persisted to `chrome.storage.local`, **no service
+  round-trip**; content script + worker read them per-event, so changes take effect on the next
+  transition. **🔈 test sound** button plays both cues (a user gesture that also primes the audio
+  path) and works even while the toggle is off.
+- **Verified:** `node --check` on all 8 extension JS files + manifest valid; typecheck + smoke 37/37
+  unaffected (Epic S is purely client-side). Preview harness updated with the border+cue combo
+  (identical synth code) for an out-of-extension eyeball/listen.
+- 🖐 Browser gate: 1-min work/break flip → red/green border ~10s, clicks pass through; one cue per
+  flip with several tabs open; toggles persist and take effect; reduced-motion steady fade.
+
 ### Next up
-- Epics H/S/F (early wave remainder), then A→(T,B)→C→D.
+- Epics H (help agent) / F (grace-clock integrity), then A→(T,B)→C→D.
 

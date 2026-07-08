@@ -31,6 +31,7 @@
 
   // ---------- soft overlay (rendered via the shared BrickOverlay primitive, Epic U1) ----------
   const WORK_COLOR = "#c0392b"; // red grace wash (matches background.js WORK_COLOR)
+  const BREAK_COLOR = "#2e8b57"; // green break border (matches background.js BREAK_COLOR)
 
   let tick = null;
   let graceHandle = null;
@@ -225,14 +226,39 @@
     });
   };
 
+  // Phase-change border (Epic S1): an unmissable, momentary signal on every state change — a colored
+  // screen border (red = work, green = break) that fades after a configurable window (default 10s).
+  // Rendered through the U1 helper (pointer-events:none — never intercepts clicks; reduced-motion is
+  // a steady fade, no strobe). Purely client-side: settings live in chrome.storage.local.
+  const showPhaseBorder = async (phase) => {
+    if (!window.BrickOverlay) return;
+    let fb = { border: true, borderSec: 10 };
+    try {
+      const { brickFeedback } = await chrome.storage.local.get("brickFeedback");
+      fb = { ...fb, ...(brickFeedback || {}) };
+    } catch {
+      /* defaults */
+    }
+    if (!fb.border) return;
+    window.BrickOverlay.show({
+      color: phase === "work" ? WORK_COLOR : BREAK_COLOR,
+      border: 6,
+      duration: Math.max(1, Number(fb.borderSec) || 10) * 1000,
+    });
+  };
+
   // Background tells us a work phase re-engaged on this already-open tab.
   // brick:phase keeps the overlay synced with the Pomodoro: when the phase flips away from "work"
   // (break / session ended) any active grace-minute countdown is cleared, so the overlay doesn't
-  // keep nagging during a break or after the session is over.
+  // keep nagging during a break or after the session is over. On a work/break flip the S1 border
+  // renders after that cleanup (an enforcement overlay arriving later — brick:catch — replaces it;
+  // enforcement always wins over decoration).
   chrome.runtime.onMessage.addListener((msg) => {
     if (msg?.type === "brick:catch") showModal(msg.reason);
-    else if (msg?.type === "brick:phase" && msg.phase !== "work") removeOverlay();
-    else if (msg?.type === "brick:rabbithole") showRabbitHole(msg.domain, msg.minutes);
+    else if (msg?.type === "brick:phase") {
+      if (msg.phase !== "work") removeOverlay();
+      if (msg.phase === "work" || msg.phase === "break") showPhaseBorder(msg.phase);
+    } else if (msg?.type === "brick:rabbithole") showRabbitHole(msg.domain, msg.minutes);
   });
 
   // Install an SPA-navigation hook on page-scoped domains so video→video changes re-adjudicate

@@ -328,10 +328,44 @@ async function enforceOpenTabs() {
   for (const tab of tabs) await enforceTab(tab, true); // passive sweep → soft (grace)
 }
 
+// Session-state feedback settings (Epic S): purely client-side presentation, stored in
+// chrome.storage.local (no service round-trip). Sound defaults OFF until opted in.
+const FEEDBACK_DEFAULTS = { sound: false, border: true, borderSec: 10 };
+async function getFeedback() {
+  const { brickFeedback } = await chrome.storage.local.get("brickFeedback");
+  return { ...FEEDBACK_DEFAULTS, ...(brickFeedback || {}) };
+}
+
+// Play a phase cue via the single offscreen document (Epic S2) — timer-fired audio from the worker
+// hits autoplay limits, and the offscreen doc (AUDIO_PLAYBACK) sidesteps that. Exactly one play per
+// transition: only the offscreen doc makes sound, never the per-tab content scripts.
+async function playCue(cue, force = false) {
+  if (cue !== "work" && cue !== "break") return;
+  if (!force && !(await getFeedback()).sound) return;
+  try {
+    const has = await chrome.offscreen.hasDocument();
+    if (!has) {
+      await chrome.offscreen.createDocument({
+        url: "offscreen.html",
+        reasons: ["AUDIO_PLAYBACK"],
+        justification: "Play a short sound cue on Pomodoro work/break transitions.",
+      });
+    }
+  } catch (e) {
+    // createDocument races (already exists) land here — safe to proceed; real failures fail silent.
+  }
+  try {
+    await chrome.runtime.sendMessage({ type: "brick:play", cue });
+  } catch {
+    /* offscreen not ready — cue is best-effort */
+  }
+}
+
 // Broadcast a phase change to every tab so any in-page UI (the grace-minute overlay) can react.
 // The overlay's own 60s timer is independent of the Pomodoro; without this it would keep nagging
 // after work→break, or hang around after the user ended the session.
 async function broadcastPhase(phase) {
+  playCue(phase); // Epic S2 — one sound per transition, from the offscreen doc (no-op if disabled)
   let tabs = [];
   try {
     tabs = await chrome.tabs.query({});
@@ -431,6 +465,10 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
           break;
         case "clearDecisions":
           sendResponse(await api("/decisions/clear", { method: "POST", body: "{}" }));
+          break;
+        case "testSound": // options-page preview (Epic S3) — plays even while the toggle is off
+          await playCue(msg.cue || "work", true);
+          sendResponse({ ok: true });
           break;
         case "startSession":
           sendResponse(await startSession(msg.opts ?? {}));

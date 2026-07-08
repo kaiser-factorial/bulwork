@@ -88,6 +88,42 @@ $("clearModel").addEventListener("click", () => {
   });
 });
 
+// Session feedback (Epic S3) — purely client-side; persisted to chrome.storage.local.
+const FEEDBACK_DEFAULTS = { sound: false, border: true, borderSec: 10 };
+
+function loadFeedback() {
+  chrome.storage.local.get("brickFeedback", ({ brickFeedback }) => {
+    const fb = { ...FEEDBACK_DEFAULTS, ...(brickFeedback || {}) };
+    $("fbBorder").checked = !!fb.border;
+    $("fbSound").checked = !!fb.sound;
+    $("fbBorderSec").value = String(fb.borderSec);
+  });
+}
+
+$("saveFeedback").addEventListener("click", () => {
+  const brickFeedback = {
+    border: $("fbBorder").checked,
+    sound: $("fbSound").checked,
+    borderSec: Math.max(1, Math.min(60, Number($("fbBorderSec").value) || 10)),
+  };
+  chrome.storage.local.set({ brickFeedback }, () => {
+    $("fbBorderSec").value = String(brickFeedback.borderSec);
+    flash("fbSaved", "saved ✓");
+  });
+});
+
+// The click is a user gesture that primes the audio path for later timer-fired playback — and lets
+// you preview the cue. Plays even while the sound toggle is off.
+$("testSound").addEventListener("click", () => {
+  chrome.runtime.sendMessage({ type: "testSound", cue: "work" }, (res) => {
+    if (!res || res.error) return flash("fbSaved", "sound failed: " + ((res && res.error) || "unknown"), 3000);
+    flash("fbSaved", "♪ played the focus tone");
+    setTimeout(() => chrome.runtime.sendMessage({ type: "testSound", cue: "break" }, () => {
+      flash("fbSaved", "♪ …and the break twinkle");
+    }), 1200);
+  });
+});
+
 $("saveTuning").addEventListener("click", () => {
   const settings = {
     pageScopeDomains: lines("pageScope"),
@@ -139,3 +175,4 @@ $("reset").addEventListener("click", () => {
 
 load();
 loadModels();
+loadFeedback();
