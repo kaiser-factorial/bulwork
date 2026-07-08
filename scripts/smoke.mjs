@@ -119,6 +119,16 @@ try {
   const afterClear = await post("/adjudicate", { url: "https://nytimes.com/section/world", task: TASK });
   check("cleared: nytimes no longer learned", afterClear.via !== "learned");
 
+  // Configurable model (Epic R2): set → reflected in /config + /adjudicate → clear reverts to seed.
+  const seed = (await get("/config")).seedModel;
+  const setRes = await post("/config/settings", { model: "test/model-x" });
+  check("settings save returns the model", setRes.model === "test/model-x");
+  check("GET /config reflects the model", (await get("/config")).model === "test/model-x");
+  const t1model = await post("/adjudicate", { url: "https://reddit.com/r/all", task: TASK });
+  check("adjudicate response surfaces the model", t1model.model === "test/model-x");
+  const clearedModel = await post("/config/settings", { model: "" });
+  check("clearing the model reverts to the seed", clearedModel.model === seed);
+
   // Session lifecycle (explicit focus — no ledger needed).
   const start = await post("/session/start", { task: TASK });
   check("session starts", Boolean(start.session && start.session.id));

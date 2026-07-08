@@ -30,6 +30,9 @@ export interface AdjudicationInput {
   title?: string;
   /** Optional project context from the Memory Hub (Phase-2 fast-follow grounding). */
   grounding?: string;
+  /** Per-request model override (R2 — configurable from the options page). Falls back to
+   *  BRICK_MODEL, then the active provider's default. */
+  model?: string;
 }
 
 export interface AdjudicationResult extends Verdict {

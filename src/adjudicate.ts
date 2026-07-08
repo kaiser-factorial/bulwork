@@ -40,7 +40,8 @@ const VALID_DECISIONS: readonly Decision[] = ["allow", "block", "ask"];
 export async function adjudicate(input: AdjudicationInput): Promise<AdjudicationResult> {
   const start = Date.now();
   const provider = selectProvider();
-  const model = process.env.BRICK_MODEL ?? provider.defaultModel;
+  // R2: per-request override wins; then the env seed; then the active provider's default.
+  const model = input.model ?? process.env.BRICK_MODEL ?? provider.defaultModel;
   // Fast-follow: enrich with project context from the Memory Hub (no-op unless BRICK_MEM_BIN set).
   const grounding = input.grounding ?? (await groundFocus(input.focus));
 

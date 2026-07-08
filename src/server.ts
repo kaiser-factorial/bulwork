@@ -6,7 +6,7 @@ import { adjudicate } from "./adjudicate.js";
 import { buildPrependHeader, wrapMessage } from "./prepend.js";
 import { classify } from "./tiers.js";
 import { groundingEnabled } from "./grounding.js";
-import { loadTiers, resetTiers, saveTiers } from "./config-store.js";
+import { loadSettings, loadTiers, resetTiers, saveSettings, saveTiers } from "./config-store.js";
 import { activeProviderName, providerHasKey, selectProvider } from "./providers/index.js";
 import {
   clearDecisions,
@@ -36,13 +36,18 @@ try {
 const PORT = Number(process.env.BRICK_PORT ?? "7373");
 // The active provider (Epic R) determines the effective default model and which key gates tier-2.
 const PROVIDER = activeProviderName();
-const MODEL = process.env.BRICK_MODEL ?? selectProvider().defaultModel;
+// The seed model: BRICK_MODEL env, else the active provider's default. Persisted settings (R2) layer
+// on top — a saved model wins, and clearing it reverts to this seed.
+const SEED_MODEL = process.env.BRICK_MODEL ?? selectProvider().defaultModel;
 const hasApiKey = (): boolean => providerHasKey();
 
 // Tier config: persisted (.data/tiers.json), editable via the options page / POST /config/tiers.
 let tiers = await loadTiers();
 // Learned-decision store (Epic 0.2): kept in memory so a hit short-circuits the model at ~0 latency.
 let decisions = await loadDecisions();
+// App settings (R2): the configurable adjudicator model lives here (.data/settings.json).
+let settings = await loadSettings();
+const effectiveModel = (): string => settings.model?.trim() || SEED_MODEL;
 
 type Body = Record<string, unknown>;
 
@@ -84,6 +89,53 @@ function applyCors(req: IncomingMessage, res: ServerResponse): void {
 
 function authorized(req: IncomingMessage): boolean {
   return Boolean(req.headers["x-brick-client"]);
+}
+
+// R2 model picker: the tool-call-capable OpenRouter catalog, fetched server-side (the key never
+// leaves the service) and cached. Only models whose `supported_parameters` include "tools" are
+// offered — the adjudicator depends on forced tool calls, so non-tool models would just fail open.
+interface ModelChoice {
+  id: string;
+  name: string;
+  prompt?: string; // per-token prompt price (USD, as OpenRouter reports it)
+  completion?: string; // per-token completion price
+  context?: number;
+}
+let modelCache: { at: number; models: ModelChoice[] } | null = null;
+const MODEL_CACHE_MS = 60 * 60 * 1000; // 1h — the catalog changes slowly
+
+async function listToolModels(): Promise<{ models: ModelChoice[]; error?: string }> {
+  const key = process.env.OPENROUTER_API_KEY;
+  if (!key) return { models: [], error: "no OPENROUTER_API_KEY (model dropdown is OpenRouter-only)" };
+  if (modelCache && Date.now() - modelCache.at < MODEL_CACHE_MS) return { models: modelCache.models };
+  try {
+    const r = await fetch("https://openrouter.ai/api/v1/models", {
+      headers: { Authorization: `Bearer ${key}` },
+    });
+    if (!r.ok) return { models: [], error: `openrouter models ${r.status}` };
+    const d = (await r.json()) as { data?: Array<Record<string, unknown>> };
+    const models: ModelChoice[] = (d.data ?? [])
+      .filter(
+        (m) =>
+          Array.isArray(m.supported_parameters) &&
+          (m.supported_parameters as unknown[]).includes("tools"),
+      )
+      .map((m) => {
+        const pricing = (m.pricing ?? {}) as { prompt?: string; completion?: string };
+        return {
+          id: String(m.id),
+          name: String(m.name ?? m.id),
+          prompt: pricing.prompt,
+          completion: pricing.completion,
+          context: typeof m.context_length === "number" ? m.context_length : undefined,
+        };
+      })
+      .sort((a, b) => a.name.localeCompare(b.name));
+    modelCache = { at: Date.now(), models };
+    return { models };
+  } catch (e) {
+    return { models: [], error: e instanceof Error ? e.message : String(e) };
+  }
 }
 
 /** Privacy: send only origin+path to the model, never query strings / fragments. */
@@ -143,7 +195,7 @@ async function handle(req: IncomingMessage, res: ServerResponse): Promise<void> 
       return sendJson(res, 200, {
         ok: true,
         provider: PROVIDER,
-        model: MODEL,
+        model: effectiveModel(),
         hasApiKey: hasApiKey(),
         grounding: groundingEnabled(),
       });
@@ -152,11 +204,27 @@ async function handle(req: IncomingMessage, res: ServerResponse): Promise<void> 
       return sendJson(res, 200, {
         tiers,
         provider: PROVIDER,
-        model: MODEL,
+        model: effectiveModel(),
+        seedModel: SEED_MODEL,
+        settings,
         hasApiKey: hasApiKey(),
         grounding: groundingEnabled(),
         decisions: decisionCounts(decisions),
       });
+
+    case "POST /config/settings": {
+      const body = await readJson(req);
+      const patch: { model?: string } = {};
+      // Accept a model override; a blank string clears it (revert to the seed).
+      if (typeof body.model === "string") patch.model = body.model;
+      settings = await saveSettings(patch);
+      return sendJson(res, 200, { settings, model: effectiveModel() });
+    }
+
+    case "GET /models": {
+      const listed = await listToolModels();
+      return sendJson(res, 200, { ...listed, current: effectiveModel(), provider: PROVIDER });
+    }
 
     case "POST /config/tiers": {
       const body = await readJson(req);
@@ -218,6 +286,7 @@ async function handle(req: IncomingMessage, res: ServerResponse): Promise<void> 
         stub: boolean;
         via?: string;
         learned?: boolean;
+        model?: string;
       };
       if (pre) {
         result = {
@@ -237,12 +306,17 @@ async function handle(req: IncomingMessage, res: ServerResponse): Promise<void> 
           stub: true,
         };
       } else {
-        const r = await adjudicate({ focus, url: modelUrl(target), title: str(body, "title") });
-        result = { decision: r.decision, reason: r.reason, confidence: r.confidence, stub: false };
+        const r = await adjudicate({
+          focus,
+          url: modelUrl(target),
+          title: str(body, "title"),
+          model: effectiveModel(),
+        });
+        result = { decision: r.decision, reason: r.reason, confidence: r.confidence, stub: false, model: r.model };
       }
 
       await recordAdjudication(target, result.decision, tier);
-      return sendJson(res, 200, { ...result, tier, url: target, focus, focusKey });
+      return sendJson(res, 200, { ...result, model: result.model ?? effectiveModel(), tier, url: target, focus, focusKey });
     }
 
     case "POST /decisions/learn": {
@@ -303,6 +377,6 @@ createServer((req, res) => {
   });
 }).listen(PORT, "127.0.0.1", () => {
   process.stdout.write(
-    `brick service on http://127.0.0.1:${PORT}  (provider: ${PROVIDER}, model: ${MODEL}, key: ${hasApiKey() ? "set" : "MISSING — tier-2 stubbed"})\n`,
+    `brick service on http://127.0.0.1:${PORT}  (provider: ${PROVIDER}, model: ${effectiveModel()}, key: ${hasApiKey() ? "set" : "MISSING — tier-2 stubbed"})\n`,
   );
 });

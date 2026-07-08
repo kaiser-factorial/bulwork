@@ -7,6 +7,7 @@ import type { TierConfig } from "./tiers.js";
 const DATA_DIR =
   process.env.BRICK_DATA_DIR ?? fileURLToPath(new URL("../.data/", import.meta.url));
 const TIERS_PATH = join(DATA_DIR, "tiers.json");
+const SETTINGS_PATH = join(DATA_DIR, "settings.json");
 
 const MAX_ENTRIES = 1000; // bound the persisted lists (defends the write endpoint)
 
@@ -53,4 +54,38 @@ export async function saveTiers(cfg: { tier1?: unknown; tier3?: unknown }): Prom
   await mkdir(DATA_DIR, { recursive: true });
   await writeFile(TIERS_PATH, JSON.stringify(clean, null, 2), "utf8");
   return clean;
+}
+
+// Persisted app settings (`.data/settings.json`) — the options page's home for non-tier config.
+// R2 adds `model` (the adjudicator model id); Epic B will add advanceMode / undoWindowSec here.
+export interface BrickSettings {
+  /** Adjudicator model id sent per-request (OpenRouter or Anthropic id). Unset → env/provider seed. */
+  model?: string;
+}
+
+function sanitizeSettings(p: Record<string, unknown>): BrickSettings {
+  const out: BrickSettings = {};
+  // An empty/blank model is treated as "unset" (revert to the env/provider default seed).
+  if (typeof p.model === "string" && p.model.trim()) out.model = p.model.trim().slice(0, 200);
+  return out;
+}
+
+/** Load persisted settings. Missing/invalid file → empty settings (never throws). */
+export async function loadSettings(): Promise<BrickSettings> {
+  try {
+    const parsed: unknown = JSON.parse(await readFile(SETTINGS_PATH, "utf8"));
+    if (parsed && typeof parsed === "object") return sanitizeSettings(parsed as Record<string, unknown>);
+  } catch {
+    /* no/invalid file → empty settings */
+  }
+  return {};
+}
+
+/** Merge a partial patch into persisted settings and return the merged, sanitized result. */
+export async function saveSettings(patch: Partial<BrickSettings>): Promise<BrickSettings> {
+  const current = await loadSettings();
+  const merged = sanitizeSettings({ ...current, ...patch } as Record<string, unknown>);
+  await mkdir(DATA_DIR, { recursive: true });
+  await writeFile(SETTINGS_PATH, JSON.stringify(merged, null, 2), "utf8");
+  return merged;
 }
