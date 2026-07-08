@@ -15,13 +15,16 @@
     "start": "node dist/cli.js",
     "dev": "tsx src/cli.ts",
     "eval": "tsx src/eval.ts",
+    "cases:export": "npm run build && node scripts/export-cases.mjs",
+    "eval:corrections": "npm run build && node scripts/export-cases.mjs .data/corrections.cases.json && tsx src/eval.ts .data/corrections.cases.json",
     "prepend": "tsx src/prepend-cli.ts",
     "serve": "tsx src/server.ts",
     "smoke": "npm run build && node scripts/smoke.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "latest",
-    "@local/shield": "file:../shield"
+    "@local/shield": "file:../shield",
+    "openai": "^6.45.0"
   },
   "devDependencies": {
     "@types/node": "^22.10.0",

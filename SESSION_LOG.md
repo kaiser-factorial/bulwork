@@ -187,3 +187,209 @@ planning passes (Phase-3 Ledger app, `ledger focus` CLI command).
 - `../ledger-cli/docs/FOCUS_COMMAND_PLAN.md` — `ledger focus <id>` as a `state/focus` pointer doc
   (recommended over an `isFocused` field); replaces BRICK's `--last` heuristic.
 
+---
+
+## Workload early wave — service lane + overlay prelude (2026-07-08)
+
+First build session on the `WORKLOAD_TICKETS.md` plan. Landed the most-verifiable-offline slice of the
+early wave (Epics R, 0, U). All on branch `worktree-workload-early-wave` (draft PR).
+
+### BRICK-R1 — provider seam + OpenRouter (DONE)
+- New `src/providers/`: `provider.ts` (neutral `VerdictProvider` contract), `anthropic.ts`,
+  `openrouter.ts` (OpenAI SDK → `https://openrouter.ai/api/v1`, forced `tool_choice` function, JSON-
+  string args parsed defensively, `content ?? ""` for the canary), `index.ts` (selection + key check).
+- `adjudicate.ts` refactored behind the seam; **R3 folded in** — provider/network error or malformed
+  output **fails open to allow** (never a hard block/throw). Canary/shield + conservative-allow intact.
+- **Selection:** `BRICK_PROVIDER` wins; default `openrouter`, but **gracefully falls back to
+  `anthropic` when only `ANTHROPIC_API_KEY` is present** — so the existing Anthropic-only install keeps
+  adjudicating instead of silently failing open. Added `openai` dep.
+- **Verified live (2026-07-08).** `npm run eval` scratch set: **OpenRouter** default (`anthropic/
+  claude-haiku-4.5`) = structured verdicts + `ask`, 3/3; **`BRICK_PROVIDER=anthropic` fallback** = 3/3;
+  **R3 fail-open** = a bogus model id degrades to `allow` (conf 0, clear reason), no crash/hard-block.
+  Remaining Phase-R item: **R2** (switch the model from the options page) — separate ticket, next up.
+
+### BRICK-0.1 / 0.4 — `ask` outcome + source-aware leniency (DONE)
+- `Decision` is now `allow | block | ask`; forced-tool enum + few-shot updated (`ask` = focus too
+  vague to judge, distinct from confident off-task). `background.js` already maps `allow = decision !==
+  "block"`, so an `ask` verdict **fails open in the live extension** until the clarify card (0.3) ships.
+- 0.4: `buildUserPrompt` biases a bare `explicit` free-typed focus toward ask/lean-allow.
+- **Verified live:** vague "assignment" → `logitloom` = **ask**, "assignment" → `instagram` = **block**
+  (correctly doesn't over-ask), grounded cases allow/block correctly.
+
+### BRICK-0.2 — learned-decision store + precedence (DONE)
+- New `src/decisions-store.ts` (`.data/decisions.json`, keyed by `(focusKey, scope, unit)`;
+  `focusKey = projectId ?? normalize(task)`; invalid file → empty, no throw). Pure `resolvePrecedence`
+  implements **Tier-1 block > learned block > learned allow > Tier-3 allow > model**.
+- `server.ts`: checks the store **before** the model and short-circuits a hit (`via:"learned"`, ~0
+  latency, no API call); routes `POST /decisions/learn`, `POST /decisions/clear`, `GET /decisions`;
+  `GET /config` gains a gatekeeper readout (counts). Stub gate now keys off the **active provider**.
+
+### BRICK-U1 — shared overlay primitive (DONE, browser-verify pending)
+- New `extension/overlay.js` — one `window.BrickOverlay.show()` renders a fixed, `pointer-events:none`,
+  high-z-index full-viewport treatment: params `color / fill / border / glow / breathe / chip / card /
+  duration`. Fade in-out, `prefers-reduced-motion` aware, replace-not-stack. Loaded before
+  `content-guard.js` in the manifest.
+- `content-guard.js` grace modal + vignette **reimplemented through the helper** (no user-perceptible
+  change; the breathing pulse is now a smooth `filter:brightness` cycle rather than restarting each
+  tick). Border-only variant is what S1 will use.
+
+### Verification
+- `npm run typecheck` + `npm run build` clean; `node --check` on all extension JS clean.
+- **`npm run smoke` rewritten: 27/27 green, now hermetic + key-free + ledger-free** — unit-tests the
+  five precedence orderings + `findLearned`, runs the server against a throwaway `BRICK_DATA_DIR`, and
+  drives focus with an explicit `task` (no ledger binary needed). Learn → short-circuit → precedence
+  (Tier-1 beats learned allow; learned block beats Tier-3) → clear all asserted.
+
+### Pending on you (verification the environment can't do)
+- ✅ **OpenRouter live pass — DONE (2026-07-08)**, after Corina added `OPENROUTER_API_KEY` to `.env`
+  (OpenRouter verdicts + Anthropic fallback + R3 fail-open all confirmed; see the R1 line above).
+- 🖐 **Browser regression (U1):** confirm the grace overlay still looks/behaves the same on real sites
+  (preview harness was shared for a quick eyeball).
+
+### BRICK-R2 — configurable model + tool-capable dropdown (DONE, 2026-07-08)
+- **Settings store:** `BrickSettings` + `loadSettings`/`saveSettings` in `config-store.ts`
+  (`.data/settings.json`; blank model = "unset" → reverts to seed). Extensible for Epic B's
+  `advanceMode`/`undoWindowSec`.
+- **Server:** effective model = `settings.model || BRICK_MODEL || provider.default`; `GET /config`
+  reflects it (+ `seedModel`, `settings`); `POST /config/settings` persists; `/adjudicate` sends the
+  effective model per-request **and echoes the model actually used** in the response. Model is now a
+  per-request `AdjudicationInput.model` (overrides env/default).
+- **Tool-capable dropdown (Corina's ask):** new `GET /models` fetches OpenRouter's catalog
+  **server-side** (key never leaves the service), filters to `supported_parameters ∋ "tools"` (263 of
+  343), sorts by name, caches 1h. Options page uses a native `<input list=datalist>` **combobox** —
+  click for the full list *or* type to filter, and it doubles as the free-text custom-id field (for
+  Anthropic-path ids not in the catalog). `background.js` gains `getModels` + `saveSettings` routes.
+- **Verified live:** `GET /models` = 263 tool models; set `openai/gpt-5-mini` → `/adjudicate` response
+  `model: openai/gpt-5-mini-2025-08-07` (the chosen model was actually used, not the default); a bogus
+  id → fail-open allow (conf 0), no crash. `npm run smoke` = **31/31** (added the settings round-trip;
+  still hermetic/offline — tier-1 short-circuits, no network model call).
+- **Remaining Phase-R:** none blocking — R4 (multi-model eval table) is optional. Provider/model epic
+  is functionally complete.
+
+### BRICK-0.3 / 0.5 — clarify overlay + honesty lever (DONE, 2026-07-08)
+- **Overlay card extended** (`overlay.js`): `corner` (non-blocking bottom-right toast, no backdrop),
+  `checkbox`, `links`, a green `yes` button kind, and button/link `onClick(ctx)` receives the
+  checkbox state — all additive to the U1 primitive.
+- **0.3 clarify flow** (`content-guard.js`): an `ask` verdict (from phase-1 or the deeper title
+  check, and from grace `recheck`) shows the corner card — **Yes, on-topic** / **No, block** /
+  **remember for this focus** checkbox / **make focus more specific** link. "remember" → `POST
+  /decisions/learn` (`via:"clarify"`); unchecked applies once. Ignored → fail open (page stays; a
+  per-load `clarifiedHref` guard prevents re-nagging). "No" soft-blocks via `goBack`. The specificity
+  link `prompt()`s and calls new **`POST /session/refocus`** (`session.ts` `refocusSession`), then
+  re-evaluates.
+- **0.5 honesty lever**: popup active view gains **⚑ off-task** / **✓ on-topic** for the current tab
+  → `markPage` in `background.js` learns `via:"correction"` and soft-blocks (off-task, `brick:catch`)
+  or returns a blocked tab to the page (on-topic); resolves the real URL behind `block.html`. Options
+  page gains a **gatekeeper readout** (`total · allow/block · clarify/correction`) + **clear learned
+  decisions** button. `background.js` routes: `learn`, `refocus`, `markPage`, `clearDecisions`.
+- **Verified:** typecheck + `node --check` (all 7 extension JS) clean; `npm run smoke` = **33/33**
+  (added refocus + clarify/correction count checks). **Live route run** (active session): clarify
+  yes+remember → learned allow short-circuits `via:learned`; correction → learned block; refocus
+  changes the focusKey so the old learned allow stops applying (page returns to the model); readout
+  counts + clear all correct.
+- 🖐 **Browser-only left:** eyeball the clarify corner card, the popup off-task/on-topic buttons, and
+  the options readout in Chrome (preview harness updated with the clarify card).
+
+### BRICK-0.6 / 0.7 / 0.8 — the Epic-0 tail (DONE, 2026-07-08). **Epic 0 is complete.**
+- **0.6 corrections → eval cases:** `LearnedDecision` gains `sampleUrl` (captured on `/decisions/learn`);
+  pure `decisionsToCases()` in `decisions-store.ts` maps learned entries to `(task, url, expected)`;
+  `scripts/export-cases.mjs` writes `.data/corrections.cases.json`; npm scripts **`cases:export`** and
+  **`eval:corrections`** (export + score). Writes to `.data/`, not the curated `examples/cases.json`.
+- **0.7 per-page scoping (YouTube):** `BrickSettings.pageScopeDomains` (default youtube.com/youtu.be in
+  the client); content-guard derives the `?v=` **video id as the `unit`** on every guard call (phase-1,
+  deeper, grace recheck, SPA), learns with `scope:"page"`, and installs an **SPA hook**
+  (pushState/replaceState patch + popstate) that re-adjudicates ~0.7s after each video change (lets the
+  title update; resets the clarify no-renag guard per video). `background.guard` forwards `unit`;
+  `learn` forwards `scope`/`unit`.
+- **0.8 rabbit-hole nudge:** `BrickSettings.rabbitHoleDomains` (default youtube.com) +
+  `rabbitHoleMinutes` (default 45). Background accrues **one active-minute per TICK_ALARM** for the
+  focused tab's flagged domain during work only (`chrome.storage.local` `brickRabbit`; reset per
+  session; /config cached 30s). Each threshold crossing fires **one** `brick:rabbithole` (dedup by
+  level) → corner card "keep going / wrap up"; wrap-up reuses `markPage` (learned block via correction
+  + soft-block).
+- Options page gains a **Focus tuning** section (per-page domains, rabbit-hole domains, threshold) via
+  `/config/settings`. Fixed `/config/settings` to accept the new fields (was model-only — caught by the
+  new smoke check).
+- **Verified:** typecheck + `node --check` (7 files) clean; **smoke 37/37** (adds: page-block-doesn't-
+  leak, decisionsToCases, focus-tuning round-trip, page-scope short-circuit). Live: page-scope allow
+  short-circuits its video while a different video goes to the model and is **blocked** (autoplay-drift
+  case proven end-to-end); export script produces correct eval cases from a scratch store.
+- 🖐 Browser-only: YouTube SPA re-adjudication on real video changes; rabbit-hole nudge at a 2-min test
+  threshold; options focus-tuning save.
+
+### Epic S — session-state feedback (S1/S2/S3 DONE, 2026-07-08; browser-verify pending)
+- **S1 border flash** (`content-guard.js`): on the existing `brick:phase` broadcast, a 6px inset
+  border via the U1 helper — **red entering work, green entering break** — fades in/out over a
+  configurable window (default 10s). `pointer-events:none` (never blocks clicks);
+  `prefers-reduced-motion` = steady fade (U1 handles it). Enforcement overlays (`brick:catch`)
+  arriving after a flip replace the border — enforcement wins over decoration.
+- **S2 sound cues** (`background.js` + new `offscreen.html/js`; manifest gains `offscreen`):
+  `broadcastPhase` → `playCue` → a singleton `chrome.offscreen` document (AUDIO_PLAYBACK reason —
+  sidesteps timer-fired autoplay limits) plays **once per transition**, never per-tab.
+  **DIVERGENCE (documented):** cues are **synthesized with WebAudio** instead of bundled clips — a
+  low two-note "settle in" (330→220Hz) entering work, an ascending twinkle (660/880/1320Hz) entering
+  break. No binary assets, no `web_accessible_resources`, tunable in code.
+- **S3 options toggles** (`options.html/js`): border on/off (default ON), sound on/off (default
+  **OFF** until opted in), border seconds (1–60) — persisted to `chrome.storage.local`, **no service
+  round-trip**; content script + worker read them per-event, so changes take effect on the next
+  transition. **🔈 test sound** button plays both cues (a user gesture that also primes the audio
+  path) and works even while the toggle is off.
+- **Verified:** `node --check` on all 8 extension JS files + manifest valid; typecheck + smoke 37/37
+  unaffected (Epic S is purely client-side). Preview harness updated with the border+cue combo
+  (identical synth code) for an out-of-extension eyeball/listen.
+- 🖐 Browser gate: 1-min work/break flip → red/green border ~10s, clicks pass through; one cue per
+  flip with several tabs open; toggles persist and take effect; reduced-motion steady fade.
+
+### Epic F — focus-time integrity (F1/F2 DONE, 2026-07-08; browser-verify pending)
+- **F1 pause the work clock** (`background.js` + `content-guard.js`): entering grace clears the
+  phase alarm and records `graceStartedAt`; on exit (chip tap / modal re-prompt / on-task recheck /
+  overlay removal) `phaseEndsAt += pausedMs` and the alarm re-arms — a block always delivers its
+  full budgeted work minutes. Badge shows frozen minutes + `⏸` during a pause. **Per-block cap**
+  (`brickFeedback.maxGraceMin`, default 5, options field): past it `graceStart` returns
+  `capped:true` and the page **hard-blocks**. `reconcile()` settles an in-flight grace first
+  (credits the pause) so worker restarts never advance through a frozen boundary; grace ledger
+  (`graceCount`/`graceUsedMs`) resets on each fresh work block (`nextPhaseState`).
+- **F2 escalating opacity** (`content-guard.js` via U1): vignette fill = `0.22 + 0.12·(count−1)`,
+  capped at 0.6 (never a black-out); resets next work block. The countdown **chip is now clickable**
+  ("tap for back to work →" — overlay.js gains `onChipClick`), so the return control is reachable
+  at every level; reduced-motion handled by the U1 helper.
+- **Verified headlessly:** a **14-check unit test drives the real `background.js` in a vm** (stubbed
+  chrome, controllable clock): pause clears the alarm, 90s+60s detours extend `phaseEndsAt` by
+  exactly 150s, count escalates 1→2→3, the 4th stint past the 5-min cap is refused `capped:true`,
+  work→break keeps the ledger while break→work resets it, and reconcile settles an in-flight grace
+  without advancing the phase. All extension JS `node --check` clean; smoke 37/37 unaffected.
+- 🖐 Browser gate: 3-min work block + two grace detours → full 3 min of actual work (badge shows ⏸
+  during grace); 3× "one more minute" in one block → progressively deeper tint, next block light;
+  cap (set to 1 min) → hard block; chip tap returns at every level.
+
+### Epic H — in-app help agent (H1–H4 DONE, 2026-07-08). **The early wave is complete.**
+- **H1 corpus** (`help/*.md`, 6 docs / 30+ chunks by `##` section): getting-started, blocking-and-
+  tiers, gatekeeper (ask/clarify/learned/precedence/honesty/per-page/rabbit-hole), sessions-and-
+  feedback (pomodoro/border/sound/grace/cap), model-and-provider, service-and-troubleshooting.
+  **Deliberately covers only what exists** (per the no-invented-config AC) — plan/template docs get
+  added when Epics A/T land.
+- **H2 `/help` route** (`src/help.ts` + `server.ts`): corpus loader + light keyword retrieval
+  (heading-boosted term overlap, top-4) → grounded chat call on the **provider seam's new `chat()`
+  method** (both providers; no forced tool). System prompt: answer ONLY from excerpts; unknown →
+  honest don't-know + doc pointer. Returns `{answer, sources, model}`; short sanitized history
+  supported. Key-free → clean 503.
+- **H4 situated tools** (shipped with v1): `get_config` / `get_session` / `get_learned_decisions` —
+  read-only, `tool_choice` auto, executed by an internal ≤4-round loop inside each provider.
+- **H3 panel**: options page **"Ask about BRICK"** chat box (log + sources line + short history)
+  via a background `help` route.
+- **Smoke hermeticity fix:** the earlier `.env` copy meant spawned smoke servers inherited real
+  keys (tier-2 checks were silently hitting the model). Smoke now blanks both keys → genuinely
+  key-free again. **Smoke 46/46** (adds corpus-load + 7 question→doc retrieval mappings + key-free
+  /help 503).
+- **Verified live** (OpenRouter): 3 how-to questions → correct, sourced answers (right doc §
+  sections); out-of-scope "sync to Google Calendar" → honest not-in-the-docs + local-log pointer;
+  **H4**: "what am I focused on?" answered with the exact live focus task + phase, "which sites are
+  blocked / what's learned?" answered from live tiers + learned store — and session/decisions state
+  confirmed unmutated afterwards.
+- 🖐 Browser: ask a few questions in the options panel (needs the service running).
+- H5 (shared corpus into Ledger's focus agent) = Ledger-repo work, deferred with Epic D.
+
+### Next up
+- **Early wave done: U ✓ R ✓ 0 ✓ S ✓ F ✓ H ✓.** Next: the plan layer — Epic A (plan queue), then
+  (T, B) → C → D per `WORKLOAD_TICKETS.md`.
+

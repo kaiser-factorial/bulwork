@@ -21,6 +21,11 @@ const BASE_SYSTEM_PROMPT = [
   "  celebrity / personal-interest browsing, and news read for leisure.",
   "- When a page is genuinely ambiguous, LEAN ALLOW. A wrong block interrupts real work, which is",
   "  worse than the occasional miss.",
+  "- Use ASK when the FOCUS TASK itself is too vague or under-specified to judge the page against —",
+  "  e.g. the focus is a bare word like 'assignment' or 'work' and the page is plausibly related but",
+  "  you cannot tell. ASK means 'I need the user to clarify', NOT 'this is off-task'. Do NOT ask when",
+  "  the page is confidently off-task (a clear distraction) — block that; and do NOT ask when the",
+  "  page is clearly on-topic — allow that. Ask is only for genuine can't-tell-from-the-focus cases.",
   "- confidence is your certainty in the decision, from 0.0 to 1.0.",
   "",
   "The page title is supplied inside <untrusted_page_title> tags.",
@@ -58,6 +63,19 @@ export function buildUserPrompt(input: AdjudicationInput): string {
         input.grounding.trim(),
       ]
     : [];
+
+  // Source-aware leniency (Epic 0.4): a bare free-typed task ("explicit") has no project context to
+  // ground against and is inherently error-prone, so bias it toward ask / lean-allow. A grounded
+  // Ledger focus (next-action / status-note / project-name) keeps normal strictness.
+  const leniencyBlock =
+    input.focus.source === "explicit"
+      ? [
+          "",
+          "NOTE: this focus was free-typed by the user with no project context to ground against. If",
+          "the page is not a clear distraction, prefer ASK (or lean allow) over block — an unfounded",
+          "block on a vaguely-worded focus is the costly error here.",
+        ]
+      : [];
   return [
     "Examples of the judgment (the focus task differs per example):",
     "",
@@ -75,7 +93,13 @@ export function buildUserPrompt(input: AdjudicationInput): string {
     "- news.ycombinator.com -> block (0.70): an aggregator front page / feed — a rabbit hole, not targeted material.",
     "- youtube.com/watch (title: 'I tried being a medieval peasant for a week') -> block (0.85): entertainment watched for fun.",
     "",
+    'Focus task: "assignment"   (vague — no subject, project, or keyword to judge against)',
+    "- logitloom.com -> ask (0.60): plausibly a tool for an assignment, but the focus is too vague to tell — clarify rather than block.",
+    "- docs.google.com/document -> ask (0.55): could be the assignment doc or an unrelated one; the bare focus can't distinguish.",
+    "- instagram.com -> block (0.85): confidently a distraction regardless of what 'assignment' means — don't ask, block.",
+    "",
     ...groundingBlock,
+    ...leniencyBlock,
     "",
     "Now evaluate this one and call record_verdict.",
     `Focus task: "${input.focus.task}"`,

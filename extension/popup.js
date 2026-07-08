@@ -75,4 +75,28 @@ $("stop").addEventListener("click", async () => {
   render();
 });
 
+// Honesty lever (Epic 0.5): correct the verdict for the current tab under the active focus.
+async function mark(decision) {
+  let tab;
+  try {
+    [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  } catch {
+    /* no tabs permission / no window */
+  }
+  if (!tab || !tab.url) {
+    $("markStatus").textContent = "no active tab to mark";
+    return;
+  }
+  const res = await send({ type: "markPage", tabId: tab.id, url: tab.url, decision });
+  if (res && res.error) {
+    $("markStatus").textContent = "failed: " + res.error;
+    return;
+  }
+  $("markStatus").textContent = decision === "block" ? "marked off-task ✓" : "marked on-topic ✓";
+  setTimeout(() => window.close(), 800);
+}
+
+$("offtask").addEventListener("click", () => mark("block"));
+$("ontopic").addEventListener("click", () => mark("allow"));
+
 render();

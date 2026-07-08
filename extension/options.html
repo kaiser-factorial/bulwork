@@ -18,8 +18,11 @@
       .bad { color: var(--red); }
       .warn { color: var(--amber); }
       .muted { color: var(--dim); font-size: 0.8rem; }
-      textarea { width: 100%; background: #06180f; color: var(--fg); border: 1px solid var(--line);
-        border-radius: 3px; padding: 8px; font: inherit; resize: vertical; }
+      textarea, input[type="text"] { width: 100%; box-sizing: border-box; background: #06180f;
+        color: var(--fg); border: 1px solid var(--line); border-radius: 3px; padding: 8px; font: inherit;
+        resize: vertical; }
+      .row { display: flex; gap: 8px; align-items: center; }
+      .row input[type="text"] { flex: 1; }
       button { margin-top: 12px; background: transparent; color: var(--fg); border: 1px solid var(--fg);
         border-radius: 3px; padding: 8px 16px; font: inherit; cursor: pointer; }
       button:hover { background: var(--fg); color: var(--bg); }
@@ -31,6 +34,28 @@
 
     <h2>Service</h2>
     <div class="status" id="status">checking 127.0.0.1:7373 …</div>
+
+    <h2>Adjudicator model</h2>
+    <div class="row">
+      <input
+        type="text"
+        id="model"
+        list="modelList"
+        spellcheck="false"
+        autocomplete="off"
+        placeholder="type to search compatible models, or paste any model id…"
+      />
+      <datalist id="modelList"></datalist>
+    </div>
+    <div style="margin-top:2px">
+      <button id="saveModel">save model</button>
+      <button id="clearModel" style="margin-left:8px">use default</button>
+      <span id="modelSaved" class="muted"></span>
+    </div>
+    <p class="muted" id="modelHint">
+      Only models that support tool calls are suggested (the adjudicator needs forced tool use). Click
+      the field for the full list, or start typing to filter. You can also paste any model id.
+    </p>
 
     <h2>Tier 1 — always blocked</h2>
     <textarea id="tier1" rows="9" spellcheck="false" placeholder="one domain per line, e.g. reddit.com"></textarea>
@@ -46,8 +71,74 @@
 
     <p class="muted">
       One domain per line. Everything not listed is Tier 2 — adjudicated against your focus task by
-      Claude Haiku 4.5. Saved to the local service (<code>.data/tiers.json</code>); a new focus
+      the configured model. Saved to the local service (<code>.data/tiers.json</code>); a new focus
       session picks up the changes.
+    </p>
+
+    <h2>Ask about BRICK</h2>
+    <div id="helpLog" style="display:none;max-height:320px;overflow-y:auto;border:1px solid var(--line);border-radius:3px;padding:10px;margin-bottom:8px"></div>
+    <div class="row">
+      <input type="text" id="helpQ" spellcheck="false" placeholder="e.g. How do I add a Tier-1 site? What does the remember checkbox do?" />
+      <button id="helpAsk" style="margin-top:0;width:auto;white-space:nowrap">ask</button>
+    </div>
+    <p class="muted">
+      A grounded assistant that answers from BRICK's own documentation (and can read current
+      config/session state). It won't invent settings — if something isn't in the docs it says so.
+      Uses your configured provider and model.
+    </p>
+
+    <h2>Session feedback</h2>
+    <div class="row" style="gap:18px;flex-wrap:wrap">
+      <label class="muted" style="display:flex;align-items:center;gap:6px">
+        <input type="checkbox" id="fbBorder" style="width:auto" /> border flash on work/break
+      </label>
+      <label class="muted" style="display:flex;align-items:center;gap:6px">
+        <input type="checkbox" id="fbSound" style="width:auto" /> sound cues
+      </label>
+      <span class="row" style="gap:6px">
+        <label class="muted" for="fbBorderSec">border seconds:</label>
+        <input type="text" id="fbBorderSec" style="width:60px" inputmode="numeric" />
+      </span>
+      <span class="row" style="gap:6px">
+        <label class="muted" for="fbMaxGrace">max grace min/block:</label>
+        <input type="text" id="fbMaxGrace" style="width:60px" inputmode="numeric" />
+      </span>
+    </div>
+    <div>
+      <button id="saveFeedback">save feedback settings</button>
+      <button id="testSound" style="margin-left:8px">🔈 test sound</button>
+      <span id="fbSaved" class="muted"></span>
+    </div>
+    <p class="muted">
+      Red border entering work, green entering break; it fades and never blocks clicks. Sound is a low
+      focus tone into work, a light twinkle into break — off until you opt in. "One more minute" grace
+      pauses the work clock (you keep your full work minutes) up to the per-block cap; each repeat
+      deepens the overlay. Stored locally in the browser (no service round-trip).
+    </p>
+
+    <h2>Focus tuning</h2>
+    <div class="label muted">Per-page domains — judged per page/video, not whole-site (default: YouTube)</div>
+    <textarea id="pageScope" rows="3" spellcheck="false" placeholder="youtube.com"></textarea>
+    <div class="label muted" style="margin-top:8px">Rabbit-hole domains — nudge after long time on these</div>
+    <textarea id="rabbitDomains" rows="3" spellcheck="false" placeholder="youtube.com"></textarea>
+    <div class="row" style="margin-top:8px">
+      <label class="muted" for="rabbitMins">Nudge after (minutes):</label>
+      <input type="text" id="rabbitMins" style="width:80px" inputmode="numeric" />
+    </div>
+    <div>
+      <button id="saveTuning">save focus tuning</button>
+      <span id="tuningSaved" class="muted"></span>
+    </div>
+
+    <h2>Gatekeeper — learned decisions</h2>
+    <div class="status" id="gatekeeper">…</div>
+    <div>
+      <button id="clearDecisions" style="border-color:#ff6b6b;color:#ff6b6b">clear learned decisions</button>
+      <span id="gkSaved" class="muted"></span>
+    </div>
+    <p class="muted">
+      Clarify answers and honesty-lever corrections are remembered per focus in
+      <code>.data/decisions.json</code>, so the same page isn't re-judged. Clearing resets them.
     </p>
 
     <script src="options.js"></script>

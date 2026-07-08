@@ -18,6 +18,7 @@
       button:hover { background: var(--fg); color: var(--bg); }
       button.stop { color: var(--red); border-color: var(--red); }
       button.stop:hover { background: var(--red); color: var(--bg); }
+      button.small { margin-top: 6px; padding: 7px; font-size: 0.82rem; }
       .timer { font-size: 2.2rem; text-align: center; margin: 8px 0; letter-spacing: 0.05em; }
       .phase { text-align: center; color: var(--dim); text-transform: uppercase; letter-spacing: 0.2em; font-size: 0.75rem; }
       .focus { font-size: 1.05rem; margin: 6px 0; }
@@ -56,6 +57,14 @@
       <div class="label">Focus</div>
       <div class="focus" id="afocus">…</div>
       <div class="muted" id="stats"></div>
+
+      <div class="label">This page</div>
+      <div class="row2">
+        <div><button id="offtask" class="stop small">⚑ off-task</button></div>
+        <div><button id="ontopic" class="small">✓ on-topic</button></div>
+      </div>
+      <div class="muted" id="markStatus"></div>
+
       <button id="stop" class="stop">■ end session</button>
     </div>
 

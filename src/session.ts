@@ -63,6 +63,14 @@ export async function startSession(opts: {
   return current;
 }
 
+/** Re-set the active session's focus to a tighter free-typed string (0.3 specificity shortcut). */
+export async function refocusSession(task: string): Promise<FocusSession | null> {
+  if (!current) return null;
+  current.focus = { task, source: "explicit" };
+  await logEvent("session.refocus", { id: current.id, focus: current.focus });
+  return current;
+}
+
 export async function setPhase(phase: Phase): Promise<FocusSession | null> {
   if (!current) return null;
   current.phase = phase;

@@ -9,7 +9,7 @@
     "48": "icons/icon48.png",
     "128": "icons/icon128.png"
   },
-  "permissions": ["storage", "alarms", "declarativeNetRequest", "tabs"],
+  "permissions": ["storage", "alarms", "declarativeNetRequest", "tabs", "offscreen"],
   "host_permissions": ["http://127.0.0.1:7373/*", "<all_urls>"],
   "background": { "service_worker": "background.js" },
   "action": {
@@ -26,7 +26,7 @@
   "content_scripts": [
     {
       "matches": ["http://*/*", "https://*/*"],
-      "js": ["content-guard.js"],
+      "js": ["overlay.js", "content-guard.js"],
       "run_at": "document_start",
       "all_frames": false
     },

@@ -1,4 +1,6 @@
-export type Decision = "allow" | "block";
+// `ask` (Epic 0.1) is a third outcome: the focus is too vague to judge the page against, so brick
+// routes to the clarify overlay instead of hard-blocking — distinct from a confident `block`.
+export type Decision = "allow" | "block" | "ask";
 
 /** The raw verdict the model produces. */
 export interface Verdict {
@@ -28,6 +30,9 @@ export interface AdjudicationInput {
   title?: string;
   /** Optional project context from the Memory Hub (Phase-2 fast-follow grounding). */
   grounding?: string;
+  /** Per-request model override (R2 — configurable from the options page). Falls back to
+   *  BRICK_MODEL, then the active provider's default. */
+  model?: string;
 }
 
 export interface AdjudicationResult extends Verdict {
