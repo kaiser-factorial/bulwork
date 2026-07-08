@@ -187,3 +187,62 @@ planning passes (Phase-3 Ledger app, `ledger focus` CLI command).
 - `../ledger-cli/docs/FOCUS_COMMAND_PLAN.md` — `ledger focus <id>` as a `state/focus` pointer doc
   (recommended over an `isFocused` field); replaces BRICK's `--last` heuristic.
 
+---
+
+## Workload early wave — service lane + overlay prelude (2026-07-08)
+
+First build session on the `WORKLOAD_TICKETS.md` plan. Landed the most-verifiable-offline slice of the
+early wave (Epics R, 0, U). All on branch `worktree-workload-early-wave` (draft PR).
+
+### BRICK-R1 — provider seam + OpenRouter (DONE)
+- New `src/providers/`: `provider.ts` (neutral `VerdictProvider` contract), `anthropic.ts`,
+  `openrouter.ts` (OpenAI SDK → `https://openrouter.ai/api/v1`, forced `tool_choice` function, JSON-
+  string args parsed defensively, `content ?? ""` for the canary), `index.ts` (selection + key check).
+- `adjudicate.ts` refactored behind the seam; **R3 folded in** — provider/network error or malformed
+  output **fails open to allow** (never a hard block/throw). Canary/shield + conservative-allow intact.
+- **Selection:** `BRICK_PROVIDER` wins; default `openrouter`, but **gracefully falls back to
+  `anthropic` when only `ANTHROPIC_API_KEY` is present** — so the existing Anthropic-only install keeps
+  adjudicating instead of silently failing open. Added `openai` dep.
+- **Verified live** via `npm run eval` on a scratch set through the Anthropic path (100%). OpenRouter
+  path is code-complete but unverified — **needs `OPENROUTER_API_KEY`** for a live pass (see below).
+
+### BRICK-0.1 / 0.4 — `ask` outcome + source-aware leniency (DONE)
+- `Decision` is now `allow | block | ask`; forced-tool enum + few-shot updated (`ask` = focus too
+  vague to judge, distinct from confident off-task). `background.js` already maps `allow = decision !==
+  "block"`, so an `ask` verdict **fails open in the live extension** until the clarify card (0.3) ships.
+- 0.4: `buildUserPrompt` biases a bare `explicit` free-typed focus toward ask/lean-allow.
+- **Verified live:** vague "assignment" → `logitloom` = **ask**, "assignment" → `instagram` = **block**
+  (correctly doesn't over-ask), grounded cases allow/block correctly.
+
+### BRICK-0.2 — learned-decision store + precedence (DONE)
+- New `src/decisions-store.ts` (`.data/decisions.json`, keyed by `(focusKey, scope, unit)`;
+  `focusKey = projectId ?? normalize(task)`; invalid file → empty, no throw). Pure `resolvePrecedence`
+  implements **Tier-1 block > learned block > learned allow > Tier-3 allow > model**.
+- `server.ts`: checks the store **before** the model and short-circuits a hit (`via:"learned"`, ~0
+  latency, no API call); routes `POST /decisions/learn`, `POST /decisions/clear`, `GET /decisions`;
+  `GET /config` gains a gatekeeper readout (counts). Stub gate now keys off the **active provider**.
+
+### BRICK-U1 — shared overlay primitive (DONE, browser-verify pending)
+- New `extension/overlay.js` — one `window.BrickOverlay.show()` renders a fixed, `pointer-events:none`,
+  high-z-index full-viewport treatment: params `color / fill / border / glow / breathe / chip / card /
+  duration`. Fade in-out, `prefers-reduced-motion` aware, replace-not-stack. Loaded before
+  `content-guard.js` in the manifest.
+- `content-guard.js` grace modal + vignette **reimplemented through the helper** (no user-perceptible
+  change; the breathing pulse is now a smooth `filter:brightness` cycle rather than restarting each
+  tick). Border-only variant is what S1 will use.
+
+### Verification
+- `npm run typecheck` + `npm run build` clean; `node --check` on all extension JS clean.
+- **`npm run smoke` rewritten: 27/27 green, now hermetic + key-free + ledger-free** — unit-tests the
+  five precedence orderings + `findLearned`, runs the server against a throwaway `BRICK_DATA_DIR`, and
+  drives focus with an explicit `task` (no ledger binary needed). Learn → short-circuit → precedence
+  (Tier-1 beats learned allow; learned block beats Tier-3) → clear all asserted.
+
+### Pending on you (verification the environment can't do)
+- 🖐 **OpenRouter live pass:** set `OPENROUTER_API_KEY`, `npm run eval` through it, confirm structured
+  verdicts + `BRICK_PROVIDER=anthropic` fallback (Phase-R gate). This box has no OpenRouter key.
+- 🖐 **Browser regression (U1):** confirm the grace overlay still looks/behaves the same on real sites
+  (preview harness was shared for a quick eyeball).
+- Not built this session (next up): R2/R3-extension bits, 0.3/0.5/0.7/0.8 (need U + browser), Epics
+  H/S/F, then A→(T,B)→C→D.
+
