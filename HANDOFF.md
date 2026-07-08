@@ -5,15 +5,20 @@
 
 ---
 
-## ▶ Next up — Epic B (watchers + swap policy), then C, then D
+## ▶ Next up — Epic D (Ledger-native store) — the last epic
 
 **Where we are (2026-07-08):** the early wave (U/R/0/S/F/H) is **merged to master** (PR #1), and the
-plan layer's **Epic A (day-plan queue)** + **Epic T (workflow templates)** are on **PR #2**
-(`workload-plan-layer`). Remaining: **Epic B** (git/ledger/command stop-condition evaluators, the
-swap-policy combinator, advance-mode setting + undo — `WORKLOAD_TICKETS.md` B1–B5; note the `ledger`
-evaluator needs a reachable `LEDGER_BIN`), **Epic C** (escalating switch notifications across
-popup/in-page/OS), **Epic D** (Ledger-native store — the only epic that edits the mature Ledger
-app). 🖐 Consolidated browser passes are pending on both PRs (checklists in the PR comments).
+**complete local-first plan layer — Epics A, T, B, C — is on PR #2** (`workload-plan-layer`,
+smoke 108/108). 🖐 Browser gates are pending on PR #2 (checklists in the PR comments).
+
+**Epic D setup (start the next session with this):** the Ledger repos live at
+`~/Projects/ledger_root/{ledger,ledger-cli,ledger-mcp}` — NOT the `../ledger` sibling paths written
+below. Launch the session from a directory spanning brick + ledger_root (or `--add-dir`), set
+`LEDGER_BIN` to the built CLI, and have Firestore creds ready. D1 adds `ledger plan
+show/advance/step --json` verbs in the Ledger repo; D2 drops `LedgerPlanStore`/`LedgerTemplateStore`
+behind the existing `PlanStore`/`TemplateStore` seams (`usePlanStore()` is the hook) + a one-shot
+`.data` migration; then re-run the Phase A/T gates against the Ledger backend. H5 (shared help
+corpus into Ledger's focus agent) rides along.
 
 The two docs that drive everything:
 
@@ -95,7 +100,12 @@ WAVE 1 — two lanes in parallel (no cross-lane file overlap):
   browser pass is the one open gate** (checklist on PR #1: grace regression, clarify card, popup
   levers, model picker, YouTube SPA, rabbit-hole at a test threshold, border/sound, grace pause/cap,
   help panel). **Merged to master.** See `SESSION_LOG.md` for per-epic detail.
-- **Plan layer, Epics A + T — DONE (2026-07-08, branch `workload-plan-layer`, PR #2).**
+- **Plan layer, Epics A + T + B + C — DONE (2026-07-08, branch `workload-plan-layer`, PR #2,
+  smoke 108/108).** B: stop-condition watchers (git/ledger/command/manual — fail-open, monotonic),
+  the §12 swap combinator, advance-mode auto-with-undo vs manual (`/plan/undo-advance`; time-driven
+  swaps always nudge). C: escalation clock (t-minus/t-0/grace), NotificationDispatcher with
+  persisted once-per-event dedup, OS toasts, in-page Advance/Stay/Undo card, badge colour ladder +
+  popup banner. Earlier entry (A+T detail) follows:
   **A ✓** day-plan queue: `WorkloadPlan/WorkBlock/Step` types, `LocalPlanStore` (`.data/plan.json`,
   Ledger-native shape behind the `PlanStore` seam), `PlanRuntime` (active block **delegates to the
   existing FocusSession** — adjudicator/tiers/learned decisions/grace untouched; advisory budgets;
@@ -160,10 +170,9 @@ extension/           MV3: manifest, background, overlay.js (U1 primitive), conte
 scripts/             smoke.mjs (hermetic self-test) + export-cases.mjs (corrections → eval cases)
 ```
 
-**Still-unbuilt modules (per `WORKLOAD_TICKETS.md`):**
+**Still-unbuilt (per `WORKLOAD_TICKETS.md`):**
 ```
-src/watchers.ts        git / ledger / command stop-condition evaluators             (Epic B)
-                       + swap-policy combinator, advance-mode setting, undo         (Epic B)
-                       + escalation clock, NotificationDispatcher, OS notifications (Epic C)
-                       + LedgerPlanStore / LedgerTemplateStore + migration          (Epic D)
+Epic D only: `ledger plan …` CLI verbs (Ledger repo), LedgerPlanStore /
+LedgerTemplateStore behind the existing store seams, .data → Ledger migration.
+(src/watchers.ts, swap policy, advance mode, escalation + dispatcher all landed with B/C.)
 ```

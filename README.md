@@ -137,9 +137,11 @@ templates, and the "Ask about BRICK" help panel. All state is local, human-reada
 `.data/` (tiers, settings, learned decisions, plan, templates, `sessions.jsonl`).
 
 **Day plans:** from the popup, queue blocks (`task | minutes` per line) or launch a saved template;
-the active block *is* a normal focus session, budgets are advisory, `advance now` walks the queue.
-Auto-detected stop conditions (git push, Ledger next-action change) and escalating swap
-notifications are designed (`WORKLOAD_DESIGN.md` §5–§12) and land as Epics B/C.
+the active block *is* a normal focus session and `advance now` walks the queue. Blocks can carry
+auto-detected **stop conditions** (git push/merge/message, Ledger next-action change, opt-in shell
+command) — a met condition auto-advances with an ↩ undo or lights up "advance now" (your choice);
+budgets escalate (heads-up → nudge → re-nudge) across the popup, an in-page card, and OS
+notifications, and never silently flip the queue.
 
 **Memory-Hub grounding (fast-follow):** set `BRICK_MEM_BIN` to enrich adjudication with the project's
 own context via the Unified Memory Hub's `mem` CLI. Off by default; fails open.
@@ -180,11 +182,12 @@ own context via the Unified Memory Hub's `mem` CLI. Off by default; fails open.
 
 **Built:** Phases 1–2 (adjudicator, prepend, service, extension, tiers, Pomodoro) + the full
 **workload early wave** (provider seam/model picker, gatekeeper quality: ask/clarify/learned/
-honesty/per-video/rabbit-hole, session feedback, focus-time integrity, help agent) + the plan
-layer's **Epic A** (day-plan queue) and **Epic T** (workflow templates). Verified by the hermetic
-`npm run smoke` plus live passes; see `HANDOFF.md` and `SESSION_LOG.md`.
+honesty/per-video/rabbit-hole, session feedback, focus-time integrity, help agent) + the **complete
+local-first plan layer**: **A** (day-plan queue), **T** (workflow templates), **B** (auto-detected
+stop conditions — git/ledger/command watchers, swap policy, auto-advance + undo), **C** (escalating
+switch notifications across popup/in-page/OS). Verified by the hermetic `npm run smoke` plus live
+passes; see `HANDOFF.md` and `SESSION_LOG.md`.
 
-**Next:** Epic **B** (auto-detected stop conditions: git/ledger watchers, swap policy, auto-advance
-+ undo) → **C** (escalating switch notifications: popup/in-page/OS) → **D** (plan/templates as
-first-class Ledger objects — the only epic that edits the mature Ledger app). Further out: Phase 3
-(Focus UI inside the Ledger app) and Phase 4 (privileged daemon + bypass resistance).
+**Next:** Epic **D** (plans/templates as first-class Ledger objects — the only epic that edits the
+mature Ledger app; needs the ledger_root repos + Firestore creds). Further out: Phase 3 (Focus UI
+inside the Ledger app) and Phase 4 (privileged daemon + bypass resistance).

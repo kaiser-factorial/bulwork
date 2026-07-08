@@ -44,7 +44,11 @@ popup / content scripts  ──►  background worker  ──►  brick service 
 - **Grace:** "just 1 more minute" pauses the work clock (badge shows ⏸) up to a per-block cap; each
   repeat deepens the tint.
 - **Day plans & templates:** queue blocks from the popup (`task | minutes` per line) or launch a
-  saved template (binding slots to projects); badge shows queue position + block budget.
+  saved template (binding slots to projects); badge shows queue position + block budget. Blocks can
+  carry **auto-detected stop conditions** (git push / Ledger next-action change / command) — a met
+  condition auto-advances with an ↩ undo, or lights up "advance now" in manual mode; budget expiry
+  escalates (amber heads-up → time's-up nudge → insistent re-nudge) across the popup, an in-page
+  card, and OS notifications.
 - **AI chat (claude.ai / Gemini / ChatGPT):** a focus pill appears bottom-right with a **"↳ prepend focus"**
   button that inserts the soft-nudge header into the composer. (Auto-on-send interception is a future
   per-site enhancement — see `SESSION_LOG.md` DIVERGENCE 4.)
@@ -94,10 +98,8 @@ quickly while testing.
 
 - **No provider key at all** → Tier-2 returns `allow` with `stub:true` (the block page and options
   page say so). Tier-1/Tier-3 and learned decisions still work without a key.
-- **Plan auto-advance** (stop-condition watchers, swap policy, escalating switch notifications) is
-  designed but not built — Epics B/C. Budgets are advisory; advancing is manual.
 - **Firestore / Ledger-native store** is stubbed; sessions log locally to `brick/.data/sessions.jsonl`
-  and plans/templates live in `brick/.data/*.json` — Epic D.
+  and plans/templates live in `brick/.data/*.json` — Epic D is the swap.
 - **Memory-Hub grounding** (sharper adjudication) is inert unless `BRICK_MEM_BIN` is set — see README.
 - **Per-site chat-composer tuning:** the prepend pill's insert may need adjustment on live
   claude.ai/Gemini/ChatGPT DOM changes.
