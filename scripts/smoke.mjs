@@ -18,6 +18,7 @@ import {
   resolvePrecedence,
 } from "../dist/decisions-store.js";
 import { loadCorpus, retrieveChunks } from "../dist/help.js";
+import { expandTemplate, liftPlanToTemplate } from "../dist/template-store.js";
 
 const PORT = process.env.SMOKE_PORT ?? "7399";
 const BASE = `http://127.0.0.1:${PORT}`;
@@ -88,6 +89,70 @@ for (const [q, doc] of QMAP) {
   const ok = hits.length > 0 && (doc === null || hits.some((h) => h.doc === doc));
   check(`retrieval: "${q}" → ${doc ?? "any"}`, ok);
 }
+
+// ---------- unit: template expansion (Epic T2) — pure, key-free ----------
+const ALT = {
+  id: "tpl_alt",
+  name: "alternating deep work",
+  slots: [
+    { key: "A", label: "first project" },
+    { key: "B", label: "second project" },
+  ],
+  blocks: [
+    { focusRef: { slot: "A" }, budgetMinutes: 120, swapMode: "time" },
+    { focusRef: { slot: "B" }, budgetMinutes: 120, swapMode: "time" },
+  ],
+  pattern: { repeat: "until-end-of-day" },
+  createdAt: "",
+};
+// At 09:00 there are 900 minutes to midnight → floor(900/240) = 3 full A,B patterns.
+const nineAM = new Date();
+nineAM.setHours(9, 0, 0, 0);
+const exp = expandTemplate(ALT, { A: { task: "proj X" }, B: { task: "proj Y" } }, nineAM);
+check("until-end-of-day at 09:00 → 3 patterns (6 blocks)", exp.length === 6);
+check(
+  "expansion alternates A,B,A,B with bindings applied",
+  exp[0].focusRef.task === "proj X" && exp[1].focusRef.task === "proj Y" && exp[2].focusRef.task === "proj X",
+);
+check("swapMode carries through expansion", exp.every((b) => b.swapMode === "time"));
+let unboundThrew = false;
+try {
+  expandTemplate(ALT, { A: { task: "only A" } }, nineAM);
+} catch {
+  unboundThrew = true;
+}
+check("unbound slot throws a clear error", unboundThrew);
+const NUM = { ...ALT, pattern: { repeat: 2 } };
+check("numeric repeat: 2 → 4 blocks", expandTemplate(NUM, { A: { task: "x" }, B: { task: "y" } }).length === 4);
+const defaulted = expandTemplate(
+  { ...NUM, pattern: undefined, slots: [{ key: "A", label: "a", defaultProjectId: "proj_9" }, { key: "B", label: "b" }] },
+  { B: { task: "y" } },
+);
+check("slot defaultProjectId fills a missing binding", defaulted[0].focusRef.projectId === "proj_9");
+
+// liftPlanToTemplate: parameterize lifts distinct projects into slots; tasks stay pre-bound.
+const lifted = liftPlanToTemplate(
+  {
+    id: "p",
+    createdAt: "",
+    blocks: [
+      { id: "b1", focus: { task: "na1", source: "next-action", projectId: "p1", projectName: "One" }, status: "done", budgetMinutes: 60, steps: [{ id: "s", label: "draft", done: true }] },
+      { id: "b2", focus: { task: "free typed", source: "explicit" }, status: "active" },
+      { id: "b3", focus: { task: "na1 again", source: "next-action", projectId: "p1", projectName: "One" }, status: "pending" },
+      { id: "b2~1", focus: { task: "clone", source: "explicit" }, status: "pending" },
+    ],
+  },
+  "my day",
+  true,
+);
+check(
+  "liftPlanToTemplate parameterizes projects into one slot + keeps tasks + drops clones",
+  lifted.slots?.length === 1 &&
+    lifted.blocks.length === 3 &&
+    "slot" in lifted.blocks[0].focusRef &&
+    "task" in lifted.blocks[1].focusRef &&
+    lifted.blocks[0].steps?.[0] === "draft",
+);
 
 // ---------- integration: the running service ----------
 let dataDir;
@@ -273,6 +338,47 @@ try {
   await post("/plan/start", { blocks: [{ task: "x1" }, { task: "x2" }] });
   const ended = await post("/plan/end", {});
   check("/plan/end skips remaining blocks + clears plan", ended.plan.activeBlockId === undefined && (await get("/plan")).plan === null);
+
+  // ---------- Epic T: templates (save → launch → save-current → delete), key-free ----------
+  const tplSave = await post("/templates", {
+    template: {
+      name: "alternating deep work",
+      slots: [
+        { key: "A", label: "first" },
+        { key: "B", label: "second" },
+      ],
+      blocks: [
+        { focusRef: { slot: "A" }, budgetMinutes: 60 },
+        { focusRef: { slot: "B" }, budgetMinutes: 60 },
+      ],
+      pattern: { repeat: 2 },
+    },
+  });
+  check("template saves with an id", typeof tplSave.template?.id === "string");
+  check("GET /templates lists it", (await get("/templates")).templates.some((t) => t.id === tplSave.template.id));
+
+  // Launch with task bindings → A,B,A,B.
+  const fromTpl = await post("/plan/from-template", {
+    templateId: tplSave.template.id,
+    bindings: { A: { task: "proj alpha work" }, B: { task: "proj beta work" } },
+  });
+  const seq = fromTpl.plan.blocks.map((b) => b.focus.task[5]); // "alpha"/"beta" discriminator
+  check("from-template expands to A,B,A,B", fromTpl.plan.blocks.length === 4 && seq.join("") === "abab");
+  check("template launch anchored a session", (await get("/session")).session?.focus.task.includes("alpha"));
+
+  // Save the running plan as a template (tasks stay pre-bound) and relaunch it — parity.
+  const savedCur = await post("/templates", { fromCurrent: { name: "today snapshot" } });
+  check("save-current produces a zero-slot template", savedCur.template?.blocks.length === 4 && !savedCur.template.slots);
+  await post("/plan/end", {});
+  const relaunch = await post("/plan/from-template", { templateId: savedCur.template.id });
+  check("zero-slot template relaunches as-is (parity)", relaunch.plan.blocks.length === 4 && relaunch.plan.blocks[0].focus.task.includes("alpha"));
+  await post("/plan/end", {});
+
+  // Missing binding → clear 500-with-error, not a crash; delete removes.
+  const bad = await fetch(BASE + "/plan/from-template", { method: "POST", headers: H, body: JSON.stringify({ templateId: tplSave.template.id }) });
+  check("unbound launch fails with a clear error", !(await bad.json()).plan && bad.status >= 400);
+  const del = await fetch(BASE + "/templates/" + tplSave.template.id, { method: "DELETE", headers: H });
+  check("DELETE /templates/:id removes it", (await del.json()).ok === true && !(await get("/templates")).templates.some((t) => t.id === tplSave.template.id));
 } finally {
   if (srv) srv.kill();
   if (dataDir) await rm(dataDir, { recursive: true, force: true }).catch(() => {});

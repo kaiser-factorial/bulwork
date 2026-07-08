@@ -106,3 +106,35 @@ export interface WorkloadPlan {
   activeBlockId?: string;
   createdAt: string;
 }
+
+// ---------- Workflow templates (Epic T) ----------
+// A saved, parameterized plan skeleton — "alternate X and Y in 2h blocks until end of day" — that
+// expands into a concrete WorkloadPlan at launch by binding slots to projects/tasks (§13).
+
+export interface Slot {
+  key: string; // "A", "B", …
+  label: string; // human name shown at binding time
+  defaultProjectId?: string;
+}
+
+export type FocusRef = { slot: string } | { projectId: string } | { task: string };
+
+/** A block skeleton. DIVERGENCE from the design's strict Omit<WorkBlock,…>: `steps` are stored as
+ *  labels (fresh Step objects are minted per expansion) — a template never carries done-state. */
+export interface TemplateBlock {
+  focusRef: FocusRef;
+  budgetMinutes?: number;
+  steps?: string[];
+  repeat?: RepeatSpec;
+  swapMode?: SwapMode;
+  onActivate?: { bunch?: string }; // integration seam with Bunch — stored, not yet acted on
+}
+
+export interface WorkflowTemplate {
+  id: string;
+  name: string; // "alternating deep work"
+  slots?: Slot[]; // named placeholders bound at launch; zero slots = pre-bound
+  blocks: TemplateBlock[]; // the ordered pattern (may reference slots)
+  pattern?: { repeat: number | "until-end-of-day" };
+  createdAt: string;
+}

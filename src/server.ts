@@ -31,7 +31,11 @@ import {
   toggleStep,
 } from "./plan-runtime.js";
 import type { StartBlockInput } from "./plan-runtime.js";
+import { LocalTemplateStore, expandTemplate, liftPlanToTemplate } from "./template-store.js";
+import type { SlotBinding } from "./template-store.js";
+import { getPlan } from "./plan-runtime.js";
 import type { ChatTurn } from "./providers/index.js";
+import type { FocusRef, WorkflowTemplate } from "./types.js";
 import {
   endSession,
   getSession,
@@ -64,6 +68,15 @@ let decisions = await loadDecisions();
 let settings = await loadSettings();
 // Plan layer (Epic A): re-hydrate a persisted mid-flight plan so the queue survives restarts.
 await restorePlan();
+// Workflow templates (Epic T): CRUD store, local JSON now / Ledger-native later.
+const templates = new LocalTemplateStore();
+
+/** Resolve a fully-bound FocusRef to a FocusTask (explicit task, or Ledger project lookup). */
+async function focusFromRef(ref: FocusRef): Promise<FocusTask> {
+  if ("task" in ref) return { task: ref.task, source: "explicit" };
+  if ("projectId" in ref) return resolveFocusTask({ projectId: ref.projectId });
+  throw new Error(`slot "${ref.slot}" was not bound`);
+}
 const effectiveModel = (): string => settings.model?.trim() || SEED_MODEL;
 
 type Body = Record<string, unknown>;
@@ -100,7 +113,7 @@ function applyCors(req: IncomingMessage, res: ServerResponse): void {
   const origin = req.headers.origin ?? "";
   if (origin && isAllowedOrigin(origin)) res.setHeader("Access-Control-Allow-Origin", origin);
   res.setHeader("Vary", "Origin");
-  res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+  res.setHeader("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type, X-Brick-Client");
 }
 
@@ -205,6 +218,15 @@ async function handle(req: IncomingMessage, res: ServerResponse): Promise<void> 
 
   if (!authorized(req)) {
     return sendJson(res, 403, { error: "missing X-Brick-Client header" });
+  }
+
+  // Parameterized route: DELETE /templates/:id (the only non-static path).
+  if (req.method === "DELETE" && url.pathname.startsWith("/templates/")) {
+    const id = decodeURIComponent(url.pathname.slice("/templates/".length));
+    const removed = await templates.remove(id);
+    return removed
+      ? sendJson(res, 200, { ok: true })
+      : sendJson(res, 404, { error: `no template: ${id}` });
   }
 
   switch (route) {
@@ -474,6 +496,71 @@ async function handle(req: IncomingMessage, res: ServerResponse): Promise<void> 
 
     case "POST /plan/end":
       return sendJson(res, 200, { plan: await endPlan() });
+
+    case "GET /templates":
+      return sendJson(res, 200, { templates: await templates.list() });
+
+    case "POST /templates": {
+      const body = await readJson(req);
+      // Two creation modes: save the CURRENT plan as a template, or post a full template object.
+      if (body.fromCurrent && typeof body.fromCurrent === "object") {
+        const fc = body.fromCurrent as Record<string, unknown>;
+        const plan = getPlan();
+        if (!plan) return sendJson(res, 400, { error: "no active plan to save" });
+        const name = typeof fc.name === "string" && fc.name.trim() ? fc.name.trim() : "saved plan";
+        const tpl = liftPlanToTemplate(plan, name, Boolean(fc.parameterize));
+        return sendJson(res, 200, { template: await templates.save(tpl) });
+      }
+      const t = body.template as Record<string, unknown> | undefined;
+      if (!t || typeof t.name !== "string" || !Array.isArray(t.blocks) || !t.blocks.length) {
+        return sendJson(res, 400, { error: "template needs a name and blocks (or use fromCurrent)" });
+      }
+      const tpl: WorkflowTemplate = {
+        id: typeof t.id === "string" && t.id.trim() ? t.id.trim() : `tpl_${Date.now().toString(36)}`,
+        name: t.name.trim(),
+        slots: Array.isArray(t.slots) ? (t.slots as WorkflowTemplate["slots"]) : undefined,
+        blocks: t.blocks as WorkflowTemplate["blocks"],
+        pattern: t.pattern && typeof t.pattern === "object" ? (t.pattern as WorkflowTemplate["pattern"]) : undefined,
+        createdAt: new Date().toISOString(),
+      };
+      return sendJson(res, 200, { template: await templates.save(tpl) });
+    }
+
+    case "POST /plan/from-template": {
+      const body = await readJson(req);
+      const templateId = str(body, "templateId");
+      if (!templateId) return sendJson(res, 400, { error: "templateId required" });
+      const tpl = await templates.get(templateId);
+      if (!tpl) return sendJson(res, 404, { error: `no template: ${templateId}` });
+      const bindings: Record<string, SlotBinding> = {};
+      if (body.bindings && typeof body.bindings === "object") {
+        for (const [k, v] of Object.entries(body.bindings as Record<string, unknown>)) {
+          if (v && typeof v === "object" && typeof (v as Record<string, unknown>).projectId === "string") {
+            bindings[k] = { projectId: (v as Record<string, unknown>).projectId as string };
+          } else if (v && typeof v === "object" && typeof (v as Record<string, unknown>).task === "string") {
+            bindings[k] = { task: (v as Record<string, unknown>).task as string };
+          }
+        }
+      }
+      const expanded = expandTemplate(tpl, bindings); // throws a clear error on unbound slots
+      const blocks: StartBlockInput[] = [];
+      for (const b of expanded) {
+        blocks.push({
+          focus: await focusFromRef(b.focusRef),
+          budgetMinutes: b.budgetMinutes,
+          steps: b.steps,
+          repeat: b.repeat,
+          swapMode: b.swapMode,
+        });
+      }
+      const plan = await startPlan({
+        label: str(body, "label") ?? tpl.name,
+        blocks,
+        workMinutes: typeof body.workMinutes === "number" ? body.workMinutes : undefined,
+        breakMinutes: typeof body.breakMinutes === "number" ? body.breakMinutes : undefined,
+      });
+      return sendJson(res, 200, { plan });
+    }
 
     case "POST /help": {
       // Grounded usage Q&A (Epic H): answers only from the help/ corpus (+ read-only state tools).
