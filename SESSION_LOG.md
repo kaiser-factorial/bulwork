@@ -203,8 +203,10 @@ early wave (Epics R, 0, U). All on branch `worktree-workload-early-wave` (draft 
 - **Selection:** `BRICK_PROVIDER` wins; default `openrouter`, but **gracefully falls back to
   `anthropic` when only `ANTHROPIC_API_KEY` is present** — so the existing Anthropic-only install keeps
   adjudicating instead of silently failing open. Added `openai` dep.
-- **Verified live** via `npm run eval` on a scratch set through the Anthropic path (100%). OpenRouter
-  path is code-complete but unverified — **needs `OPENROUTER_API_KEY`** for a live pass (see below).
+- **Verified live (2026-07-08).** `npm run eval` scratch set: **OpenRouter** default (`anthropic/
+  claude-haiku-4.5`) = structured verdicts + `ask`, 3/3; **`BRICK_PROVIDER=anthropic` fallback** = 3/3;
+  **R3 fail-open** = a bogus model id degrades to `allow` (conf 0, clear reason), no crash/hard-block.
+  Remaining Phase-R item: **R2** (switch the model from the options page) — separate ticket, next up.
 
 ### BRICK-0.1 / 0.4 — `ask` outcome + source-aware leniency (DONE)
 - `Decision` is now `allow | block | ask`; forced-tool enum + few-shot updated (`ask` = focus too
@@ -239,8 +241,8 @@ early wave (Epics R, 0, U). All on branch `worktree-workload-early-wave` (draft 
   (Tier-1 beats learned allow; learned block beats Tier-3) → clear all asserted.
 
 ### Pending on you (verification the environment can't do)
-- 🖐 **OpenRouter live pass:** set `OPENROUTER_API_KEY`, `npm run eval` through it, confirm structured
-  verdicts + `BRICK_PROVIDER=anthropic` fallback (Phase-R gate). This box has no OpenRouter key.
+- ✅ **OpenRouter live pass — DONE (2026-07-08)**, after Corina added `OPENROUTER_API_KEY` to `.env`
+  (OpenRouter verdicts + Anthropic fallback + R3 fail-open all confirmed; see the R1 line above).
 - 🖐 **Browser regression (U1):** confirm the grace overlay still looks/behaves the same on real sites
   (preview harness was shared for a quick eyeball).
 - Not built this session (next up): R2/R3-extension bits, 0.3/0.5/0.7/0.8 (need U + browser), Epics
