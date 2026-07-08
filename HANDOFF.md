@@ -76,14 +76,18 @@ WAVE 1 — two lanes in parallel (no cross-lane file overlap):
   `BRICK_MEM_BIN`.
 - **Design/planning — DONE (2026-07-08).** Full design + phased tickets for the next build wave
   (Epics U, R, 0, H, S, F, A, T, B, C, D) written in `WORKLOAD_DESIGN.md` + `WORKLOAD_TICKETS.md`.
-- **Workload early wave — STARTED (2026-07-08, branch `worktree-workload-early-wave`).** Landed the
-  offline-verifiable slice: **U1** (shared `extension/overlay.js` primitive), **R1** (provider seam +
-  OpenRouter, Anthropic fallback, fail-open), **0.1** (`ask` outcome), **0.4** (source leniency),
-  **0.2** (learned-decision store + precedence + `/decisions/*` routes). `npm run smoke` is now
-  hermetic/key-free/ledger-free at **27/27**; Anthropic adjudication + `ask` verified live. **Still
-  pending (needs you):** 🖐 an `OPENROUTER_API_KEY` live pass (Phase-R gate) and 🖐 the U1 browser
-  regression. See `SESSION_LOG.md` (bottom) for details. Next tickets: R2/R3, then 0.3/0.5/0.7/0.8
-  (need U + browser), Epics H/S/F, then A → (T, B) → C → D.
+- **Workload early wave — COMPLETE (2026-07-08, branch `worktree-workload-early-wave`, PR #1).**
+  **U ✓ R ✓ (R1–R3; R4 optional) 0 ✓ (0.1–0.8) S ✓ F ✓ H ✓ (H1–H4; H5 with Epic D).** Highlights:
+  provider seam + OpenRouter with model picker (`GET /models`, tool-capable filter); `ask` outcome +
+  clarify card + learned-decision store with precedence + honesty lever + YouTube per-page scoping +
+  rabbit-hole nudge; phase border + synthesized sound cues; grace clock-pause with per-block cap +
+  escalating tint; grounded `/help` agent with read-only state tools + options-page panel.
+  `npm run smoke` = **46/46**, hermetic/key-free/ledger-free; OpenRouter + Anthropic + fail-open +
+  learned/precedence + page-scope + refocus + help retrieval all verified live. 🖐 **A consolidated
+  browser pass is the one open gate** (checklist on PR #1: grace regression, clarify card, popup
+  levers, model picker, YouTube SPA, rabbit-hole at a test threshold, border/sound, grace pause/cap,
+  help panel). See `SESSION_LOG.md` (bottom) for per-epic detail. **Next:** the plan layer — Epic A
+  (plan queue), then (T, B) → C → D.
 
 ## Resume / verify
 
