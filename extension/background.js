@@ -92,6 +92,7 @@ async function startSession(opts) {
   const phaseEndsAt = Date.now() + (session.workMinutes ?? 25) * 60000;
   const state = { session, phase: "work", phaseEndsAt };
   await setState(state);
+  await resetRabbitHole(); // fresh per-session foreground-time counters (Epic 0.8)
   await setTier1Rules(true);
   await chrome.alarms.create(PHASE_ALARM, { when: phaseEndsAt });
   await chrome.alarms.create(TICK_ALARM, { periodInMinutes: 1 });
@@ -157,14 +158,23 @@ async function reconcile() {
   if (st.phase === "work") await enforceOpenTabs();
 }
 
-// Tier-2 adjudication for a navigation (called by content-guard; title is the Phase-2 deeper signal).
-async function guard(url, title) {
+function hostOf(u) {
+  try {
+    return new URL(u).hostname.replace(/^www\./, "").toLowerCase();
+  } catch {
+    return "";
+  }
+}
+
+// Tier-2 adjudication for a navigation (called by content-guard; title is the Phase-2 deeper signal,
+// unit is a per-page key like a YouTube video id for high-variance domains — Epic 0.7).
+async function guard(url, title, unit) {
   const st = await getState();
   if (!st.session || st.phase !== "work") {
     return { allow: true, tier: "tier3", reason: "no active work session" };
   }
   try {
-    const r = await api("/adjudicate", { method: "POST", body: JSON.stringify({ url, title }) });
+    const r = await api("/adjudicate", { method: "POST", body: JSON.stringify({ url, title, unit }) });
     return {
       allow: r.decision !== "block",
       decision: r.decision,
@@ -176,6 +186,63 @@ async function guard(url, title) {
     // Fail open — never block real work because the service is unreachable.
     return { allow: true, tier: "error", reason: "brick service unreachable (fail-open)" };
   }
+}
+
+// Cache /config briefly so the per-minute rabbit-hole tick doesn't hammer the service.
+let cfgCache = null;
+let cfgCacheAt = 0;
+async function getConfigCached() {
+  if (cfgCache && Date.now() - cfgCacheAt < 30000) return cfgCache;
+  cfgCache = await api("/config");
+  cfgCacheAt = Date.now();
+  return cfgCache;
+}
+
+// Rabbit-hole time nudge (Epic 0.8): accrue foreground minutes per flagged domain *only while its
+// tab is active during work*, and fire a check-in each time a threshold multiple is crossed.
+async function accrueRabbitHole() {
+  const st = await getState();
+  if (!st.session || st.phase !== "work") return;
+  let cfg;
+  try {
+    cfg = await getConfigCached();
+  } catch {
+    return;
+  }
+  // Default flagged domain is YouTube (design §14.8); an explicit empty list disables the nudge.
+  const domains = cfg.settings?.rabbitHoleDomains ?? ["youtube.com"];
+  const threshold = cfg.settings?.rabbitHoleMinutes || 45;
+  if (!domains.length) return;
+  let tab;
+  try {
+    [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  } catch {
+    return;
+  }
+  if (!tab || !tab.url || !tab.url.startsWith("http")) return;
+  const host = hostOf(tab.url);
+  const flagged = domains.find((d) => host === d || host.endsWith("." + d));
+  if (!flagged) return;
+  const store = (await chrome.storage.local.get("brickRabbit")).brickRabbit || { mins: {}, nudged: {} };
+  store.mins[flagged] = (store.mins[flagged] || 0) + 1; // one TICK_ALARM ≈ one active minute
+  const level = Math.floor(store.mins[flagged] / threshold);
+  if (level >= 1 && (store.nudged[flagged] || 0) < level) {
+    store.nudged[flagged] = level; // dedup: one nudge per threshold crossing
+    try {
+      await chrome.tabs.sendMessage(tab.id, {
+        type: "brick:rabbithole",
+        domain: flagged,
+        minutes: store.mins[flagged],
+      });
+    } catch {
+      /* no content script in that tab */
+    }
+  }
+  await chrome.storage.local.set({ brickRabbit: store });
+}
+
+async function resetRabbitHole() {
+  await chrome.storage.local.set({ brickRabbit: { mins: {}, nudged: {} } });
 }
 
 // Re-check a single already-open tab and redirect it to the block page if it's now off-task.
@@ -283,7 +350,10 @@ async function broadcastPhase(phase) {
 
 chrome.alarms.onAlarm.addListener((a) => {
   if (a.name === PHASE_ALARM) onPhaseAlarm();
-  else if (a.name === TICK_ALARM) updateBadge();
+  else if (a.name === TICK_ALARM) {
+    updateBadge();
+    accrueRabbitHole(); // Epic 0.8 — count active-during-work time on flagged domains
+  }
 });
 chrome.runtime.onStartup.addListener(reconcile);
 chrome.runtime.onInstalled.addListener(reconcile);
@@ -300,7 +370,7 @@ chrome.tabs.onActivated.addListener(async ({ tabId }) => {
   }
 });
 
-chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
+chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   (async () => {
     try {
       switch (msg?.type) {
@@ -335,11 +405,17 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
             }),
           );
           break;
-        case "learn": // clarify-card answer (Epic 0.3)
+        case "learn": // clarify-card answer (Epic 0.3); scope/unit set for per-page domains (0.7)
           sendResponse(
             await api("/decisions/learn", {
               method: "POST",
-              body: JSON.stringify({ url: msg.url, decision: msg.decision, via: msg.via || "clarify" }),
+              body: JSON.stringify({
+                url: msg.url,
+                decision: msg.decision,
+                via: msg.via || "clarify",
+                scope: msg.scope,
+                unit: msg.unit,
+              }),
             }),
           );
           break;
@@ -348,8 +424,10 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
             await api("/session/refocus", { method: "POST", body: JSON.stringify({ task: msg.task }) }),
           );
           break;
-        case "markPage": // honesty lever (Epic 0.5)
-          sendResponse(await markPage(msg.tabId, msg.url, msg.decision));
+        case "markPage": // honesty lever (Epic 0.5) / rabbit-hole wrap-up (0.8)
+          sendResponse(
+            await markPage(msg.tabId ?? sender.tab?.id, msg.url ?? sender.tab?.url, msg.decision),
+          );
           break;
         case "clearDecisions":
           sendResponse(await api("/decisions/clear", { method: "POST", body: "{}" }));
@@ -362,7 +440,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
           sendResponse({ ok: true });
           break;
         case "guard":
-          sendResponse(await guard(msg.url, msg.title));
+          sendResponse(await guard(msg.url, msg.title, msg.unit));
           break;
         case "prepend":
           sendResponse(

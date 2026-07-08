@@ -49,6 +49,10 @@ function load() {
     $("model").value = cfg.model || "";
     $("tier1").value = ((cfg.tiers && cfg.tiers.tier1) || []).join("\n");
     $("tier3").value = ((cfg.tiers && cfg.tiers.tier3) || []).join("\n");
+    const s = cfg.settings || {};
+    $("pageScope").value = (s.pageScopeDomains || ["youtube.com"]).join("\n");
+    $("rabbitDomains").value = (s.rabbitHoleDomains || ["youtube.com"]).join("\n");
+    $("rabbitMins").value = String(s.rabbitHoleMinutes || 45);
     renderGatekeeper(cfg.decisions);
   });
 }
@@ -81,6 +85,18 @@ $("clearModel").addEventListener("click", () => {
     if (!res || res.error) return flash("modelSaved", "reset failed: " + ((res && res.error) || "unknown"), 3000);
     $("model").value = res.model || "";
     flash("modelSaved", `using default ✓ (${res.model})`);
+  });
+});
+
+$("saveTuning").addEventListener("click", () => {
+  const settings = {
+    pageScopeDomains: lines("pageScope"),
+    rabbitHoleDomains: lines("rabbitDomains"),
+    rabbitHoleMinutes: Number($("rabbitMins").value) || 45,
+  };
+  chrome.runtime.sendMessage({ type: "saveSettings", settings }, (res) => {
+    if (!res || res.error) return flash("tuningSaved", "save failed: " + ((res && res.error) || "unknown"), 3000);
+    flash("tuningSaved", "saved ✓");
   });
 });
 

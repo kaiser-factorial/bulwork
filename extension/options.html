@@ -75,6 +75,20 @@
       session picks up the changes.
     </p>
 
+    <h2>Focus tuning</h2>
+    <div class="label muted">Per-page domains — judged per page/video, not whole-site (default: YouTube)</div>
+    <textarea id="pageScope" rows="3" spellcheck="false" placeholder="youtube.com"></textarea>
+    <div class="label muted" style="margin-top:8px">Rabbit-hole domains — nudge after long time on these</div>
+    <textarea id="rabbitDomains" rows="3" spellcheck="false" placeholder="youtube.com"></textarea>
+    <div class="row" style="margin-top:8px">
+      <label class="muted" for="rabbitMins">Nudge after (minutes):</label>
+      <input type="text" id="rabbitMins" style="width:80px" inputmode="numeric" />
+    </div>
+    <div>
+      <button id="saveTuning">save focus tuning</button>
+      <span id="tuningSaved" class="muted"></span>
+    </div>
+
     <h2>Gatekeeper — learned decisions</h2>
     <div class="status" id="gatekeeper">…</div>
     <div>

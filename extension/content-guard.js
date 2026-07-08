@@ -13,6 +13,22 @@
     return [document.title, desc, h1].filter(Boolean).join(" — ").slice(0, 400);
   };
 
+  // ---------- per-page scoping for high-variance domains (Epic 0.7) ----------
+  // A page-scoped domain (default: YouTube) is judged per *page* (video), not per whole site: we send
+  // a per-page `unit` (the ?v= id) on each check, learn with scope:"page", and re-adjudicate on SPA
+  // navigation (video→video) since those don't reload the document.
+  const host = location.hostname.replace(/^www\./, "").toLowerCase();
+  let pageScopeDomains = ["youtube.com", "youtu.be"]; // default; refined from /config settings
+  const isPageScoped = () => pageScopeDomains.some((d) => host === d || host.endsWith("." + d));
+  const videoUnit = () => {
+    try {
+      return new URL(location.href).searchParams.get("v") || null;
+    } catch {
+      return null;
+    }
+  };
+  const pageUnit = () => (isPageScoped() ? videoUnit() : null);
+
   // ---------- soft overlay (rendered via the shared BrickOverlay primitive, Epic U1) ----------
   const WORK_COLOR = "#c0392b"; // red grace wash (matches background.js WORK_COLOR)
 
@@ -83,6 +99,7 @@
         type: "guard",
         url: location.href,
         title: pageSignal(),
+        unit: pageUnit(),
       });
       if (res && res.decision === "ask") showClarify(res.reason);
       else if (res && res.allow === false) showModal(res.reason);
@@ -102,10 +119,15 @@
   // A non-blocking corner card — the page stays loaded and usable (an `ask` is a question, not a
   // hold). Answering writes to the learned store when "remember" is checked; ignoring it fails open
   // (we simply don't re-nag this page load).
-  const learn = (decision) =>
-    chrome.runtime
-      .sendMessage({ type: "learn", url: location.href, decision, via: "clarify" })
-      .catch(() => {});
+  const learn = (decision) => {
+    const unit = pageUnit();
+    const msg = { type: "learn", url: location.href, decision, via: "clarify" };
+    if (unit) {
+      msg.scope = "page"; // page-scoped domains learn per video, not per whole site (0.7)
+      msg.unit = unit;
+    }
+    return chrome.runtime.sendMessage(msg).catch(() => {});
+  };
 
   const makeSpecific = async () => {
     const next = window.prompt(
@@ -159,6 +181,50 @@
     });
   };
 
+  // Re-adjudicate the current page (used by the SPA hook on a video change, Epic 0.7).
+  const reAdjudicate = async () => {
+    try {
+      const res = await chrome.runtime.sendMessage({
+        type: "guard",
+        url: location.href,
+        title: pageSignal(),
+        unit: pageUnit(),
+      });
+      if (res && res.decision === "ask") showClarify(res.reason);
+      else if (res && res.allow === false) hardBlock(res);
+      else removeOverlay(); // this video is on-task → clear any overlay from the previous one
+    } catch {
+      removeOverlay();
+    }
+  };
+
+  // Rabbit-hole time nudge (Epic 0.8): a check-in card after long foreground time on a flagged domain.
+  const showRabbitHole = (domain, minutes) => {
+    if (!window.BrickOverlay) return;
+    window.BrickOverlay.show({
+      card: {
+        corner: true,
+        tag: "■ BRICK MODE",
+        title: `${minutes} min on ${domain} this session`,
+        body: "Still productive here, or time to wrap up?",
+        buttons: [
+          { label: "Keep going", kind: "stay", onClick: () => removeOverlay() },
+          {
+            label: "Wrap up",
+            kind: "go",
+            onClick: () => {
+              // Block this domain for the focus (via correction) — background soft-blocks the tab.
+              chrome.runtime
+                .sendMessage({ type: "markPage", decision: "block", url: location.href })
+                .catch(() => {});
+              removeOverlay();
+            },
+          },
+        ],
+      },
+    });
+  };
+
   // Background tells us a work phase re-engaged on this already-open tab.
   // brick:phase keeps the overlay synced with the Pomodoro: when the phase flips away from "work"
   // (break / session ended) any active grace-minute countdown is cleared, so the overlay doesn't
@@ -166,7 +232,46 @@
   chrome.runtime.onMessage.addListener((msg) => {
     if (msg?.type === "brick:catch") showModal(msg.reason);
     else if (msg?.type === "brick:phase" && msg.phase !== "work") removeOverlay();
+    else if (msg?.type === "brick:rabbithole") showRabbitHole(msg.domain, msg.minutes);
   });
+
+  // Install an SPA-navigation hook on page-scoped domains so video→video changes re-adjudicate
+  // without a full reload (Epic 0.7). Patches pushState/replaceState + listens for popstate.
+  const installSpaHook = () => {
+    if (!isPageScoped() || window.__brickSpaHooked) return;
+    window.__brickSpaHooked = true;
+    let lastUnit = videoUnit();
+    const onNav = () => {
+      const u = videoUnit();
+      if (u !== lastUnit) {
+        lastUnit = u;
+        clarifiedHref = null; // a new video is a fresh page for the clarify guard
+        setTimeout(reAdjudicate, 700); // let the SPA update the title first
+      }
+    };
+    for (const m of ["pushState", "replaceState"]) {
+      const orig = history[m];
+      history[m] = function () {
+        const r = orig.apply(this, arguments);
+        try {
+          onNav();
+        } catch {
+          /* ignore */
+        }
+        return r;
+      };
+    }
+    window.addEventListener("popstate", onNav);
+  };
+  installSpaHook(); // for the default (YouTube); re-checked once /config settings load below
+  chrome.runtime
+    .sendMessage({ type: "getConfig" })
+    .then((cfg) => {
+      const d = cfg?.settings?.pageScopeDomains;
+      if (Array.isArray(d) && d.length) pageScopeDomains = d;
+      installSpaHook();
+    })
+    .catch(() => {});
 
   // ---------- navigation check ----------
   // Navigating to an off-task page DURING work is a HARD block — no grace. The soft "1 more minute"
@@ -190,7 +295,7 @@
   (async () => {
     let phase1;
     try {
-      phase1 = await chrome.runtime.sendMessage({ type: "guard", url: location.href });
+      phase1 = await chrome.runtime.sendMessage({ type: "guard", url: location.href, unit: pageUnit() });
     } catch {
       return; // background unreachable — fail open
     }
@@ -205,7 +310,12 @@
       const title = pageSignal();
       if (!title) return;
       try {
-        const res = await chrome.runtime.sendMessage({ type: "guard", url: location.href, title });
+        const res = await chrome.runtime.sendMessage({
+          type: "guard",
+          url: location.href,
+          title,
+          unit: pageUnit(),
+        });
         if (res && res.decision === "ask") showClarify(res.reason);
         else if (res && res.allow === false) hardBlock(res);
       } catch {
