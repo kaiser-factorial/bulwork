@@ -18,6 +18,7 @@
 
   let tick = null;
   let graceHandle = null;
+  let clarifiedHref = null; // page already answered/dismissed a clarify card → don't re-nag this load
 
   const stopTick = () => {
     if (tick) clearInterval(tick);
@@ -83,7 +84,8 @@
         url: location.href,
         title: pageSignal(),
       });
-      if (res && res.allow === false) showModal(res.reason);
+      if (res && res.decision === "ask") showClarify(res.reason);
+      else if (res && res.allow === false) showModal(res.reason);
       else removeOverlay(); // on-task now, or break started (guard allows outside work) → clear
     } catch {
       removeOverlay();
@@ -94,6 +96,67 @@
     removeOverlay();
     if (history.length > 1) history.back();
     else location.replace("about:blank");
+  };
+
+  // ---------- clarify-and-learn card (Epic 0.3): shown on an `ask` verdict ----------
+  // A non-blocking corner card — the page stays loaded and usable (an `ask` is a question, not a
+  // hold). Answering writes to the learned store when "remember" is checked; ignoring it fails open
+  // (we simply don't re-nag this page load).
+  const learn = (decision) =>
+    chrome.runtime
+      .sendMessage({ type: "learn", url: location.href, decision, via: "clarify" })
+      .catch(() => {});
+
+  const makeSpecific = async () => {
+    const next = window.prompt(
+      "Refine your focus so BRICK can tell what's on-topic:",
+      "",
+    );
+    if (!next || !next.trim()) return;
+    try {
+      await chrome.runtime.sendMessage({ type: "refocus", task: next.trim() });
+    } catch {
+      /* ignore — refocus is best-effort */
+    }
+    removeOverlay();
+    clarifiedHref = null; // re-evaluate this page under the tightened focus
+    recheck();
+  };
+
+  const showClarify = (reason) => {
+    if (!window.BrickOverlay) return; // helper missing → fail open (page stays loaded)
+    if (clarifiedHref === location.href) return; // already answered/dismissed here → no re-nag
+    clarifiedHref = location.href;
+    stopTick();
+    const host = location.hostname.replace(/^www\./, "");
+    window.BrickOverlay.show({
+      card: {
+        corner: true,
+        tag: "■ BRICK MODE",
+        title: "Is this on-topic?",
+        body: reason || `Not sure if ${host} fits your current focus.`,
+        checkbox: { label: "remember for this focus", checked: true },
+        buttons: [
+          {
+            label: "Yes, on-topic",
+            kind: "yes",
+            onClick: (ctx) => {
+              if (ctx.checked) learn("allow");
+              removeOverlay();
+            },
+          },
+          {
+            label: "No, block",
+            kind: "go",
+            onClick: (ctx) => {
+              if (ctx.checked) learn("block");
+              goBack();
+            },
+          },
+        ],
+        links: [{ label: "make focus more specific", onClick: makeSpecific }],
+      },
+    });
   };
 
   // Background tells us a work phase re-engaged on this already-open tab.
@@ -135,14 +198,16 @@
       hardBlock(phase1);
       return;
     }
-    if (!phase1 || phase1.tier !== "tier2" || phase1.stub) return; // only deepen real Tier-2 allows
+    // Deepen real Tier-2 verdicts (allow or ask) with the page's title; a stub/Tier-1/3 is final.
+    if (!phase1 || phase1.tier !== "tier2" || phase1.stub) return;
 
     const deeper = async () => {
       const title = pageSignal();
       if (!title) return;
       try {
         const res = await chrome.runtime.sendMessage({ type: "guard", url: location.href, title });
-        if (res && res.allow === false) hardBlock(res);
+        if (res && res.decision === "ask") showClarify(res.reason);
+        else if (res && res.allow === false) hardBlock(res);
       } catch {
         /* fail open */
       }

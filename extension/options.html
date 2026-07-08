@@ -71,8 +71,19 @@
 
     <p class="muted">
       One domain per line. Everything not listed is Tier 2 — adjudicated against your focus task by
-      Claude Haiku 4.5. Saved to the local service (<code>.data/tiers.json</code>); a new focus
+      the configured model. Saved to the local service (<code>.data/tiers.json</code>); a new focus
       session picks up the changes.
+    </p>
+
+    <h2>Gatekeeper — learned decisions</h2>
+    <div class="status" id="gatekeeper">…</div>
+    <div>
+      <button id="clearDecisions" style="border-color:#ff6b6b;color:#ff6b6b">clear learned decisions</button>
+      <span id="gkSaved" class="muted"></span>
+    </div>
+    <p class="muted">
+      Clarify answers and honesty-lever corrections are remembered per focus in
+      <code>.data/decisions.json</code>, so the same page isn't re-judged. Clearing resets them.
     </p>
 
     <script src="options.js"></script>

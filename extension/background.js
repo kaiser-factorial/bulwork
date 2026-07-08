@@ -193,6 +193,42 @@ function redirectTab(tabId, url, res) {
     .catch(() => {});
 }
 
+// If a tab is sitting on our block page, the real target is in its ?url= param — the honesty lever
+// should learn/act on that, not on block.html.
+function realUrl(u) {
+  try {
+    if (u && u.startsWith(chrome.runtime.getURL("block.html"))) {
+      const q = new URL(u).searchParams.get("url");
+      if (q) return q;
+    }
+  } catch {
+    /* ignore */
+  }
+  return u;
+}
+
+// Honesty lever (Epic 0.5): the user corrects a verdict for the current tab under the active focus.
+// "block" (off-task) → learn a block + soft-block the tab now; "allow" (on-topic) → learn an allow +
+// return a blocked tab to the page. Both persist under the focus via the learned store.
+async function markPage(tabId, rawUrl, decision) {
+  const url = realUrl(rawUrl);
+  if (!url || !url.startsWith("http")) return { error: "no page url to mark" };
+  const res = await api("/decisions/learn", {
+    method: "POST",
+    body: JSON.stringify({ url, decision, via: "correction" }),
+  });
+  if (decision === "block" && tabId != null) {
+    try {
+      await chrome.tabs.sendMessage(tabId, { type: "brick:catch", reason: "You marked this off-task for this focus." });
+    } catch {
+      redirectTab(tabId, url, { reason: "Marked off-task", tier: "tier2" });
+    }
+  } else if (decision === "allow" && tabId != null && rawUrl && rawUrl.startsWith(chrome.runtime.getURL("block.html"))) {
+    chrome.tabs.update(tabId, { url }).catch(() => {});
+  }
+  return res;
+}
+
 // soft=true → the work phase began while you were already on this tab (break→work / session start):
 // Tier-2 gets the gentle "1 more minute" overlay. soft=false (or Tier-1) → hard block: you actively
 // navigated/switched to an off-task page during work, so no grace.
@@ -298,6 +334,25 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
               body: JSON.stringify(msg.settings ?? {}),
             }),
           );
+          break;
+        case "learn": // clarify-card answer (Epic 0.3)
+          sendResponse(
+            await api("/decisions/learn", {
+              method: "POST",
+              body: JSON.stringify({ url: msg.url, decision: msg.decision, via: msg.via || "clarify" }),
+            }),
+          );
+          break;
+        case "refocus": // "make focus more specific" shortcut (Epic 0.3)
+          sendResponse(
+            await api("/session/refocus", { method: "POST", body: JSON.stringify({ task: msg.task }) }),
+          );
+          break;
+        case "markPage": // honesty lever (Epic 0.5)
+          sendResponse(await markPage(msg.tabId, msg.url, msg.decision));
+          break;
+        case "clearDecisions":
+          sendResponse(await api("/decisions/clear", { method: "POST", body: "{}" }));
           break;
         case "startSession":
           sendResponse(await startSession(msg.opts ?? {}));

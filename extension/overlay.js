@@ -54,7 +54,21 @@
   #${ROOT_ID} .bo-stay{background:transparent;color:#777;border-color:#3a3a3a}
   #${ROOT_ID} .bo-stay:hover{background:#3a3a3a;color:#ccc;border-color:#5a5a5a}
   #${ROOT_ID} .bo-go{background:#c0392b;color:#fff;border-color:#c0392b}
-  #${ROOT_ID} .bo-go:hover{filter:brightness(1.12)}`;
+  #${ROOT_ID} .bo-go:hover{filter:brightness(1.12)}
+  #${ROOT_ID} .bo-yes{background:#2e8b57;color:#fff;border-color:#2e8b57}
+  #${ROOT_ID} .bo-yes:hover{filter:brightness(1.12)}
+  /* corner card (non-blocking) — the clarify prompt; page stays interactive behind it */
+  #${ROOT_ID} .bo-corner{position:fixed;right:18px;bottom:18px;width:min(340px,92vw);box-sizing:border-box;
+    background:#14110a;color:#fbd962;border:2px solid #c0392b;border-radius:12px;padding:18px;text-align:left;
+    box-shadow:0 18px 50px rgba(0,0,0,.5);pointer-events:auto}
+  #${ROOT_ID} .bo-corner .bo-h{font-size:1.05rem}
+  #${ROOT_ID} .bo-corner .bo-reason{text-align:left}
+  #${ROOT_ID} .bo-corner .bo-actions{justify-content:flex-start}
+  #${ROOT_ID} .bo-check{display:flex;align-items:center;gap:7px;color:#cda94e;font-size:.8rem;margin:2px 0 12px;cursor:pointer}
+  #${ROOT_ID} .bo-check input{accent-color:#c0392b;width:auto}
+  #${ROOT_ID} .bo-links{margin-top:10px}
+  #${ROOT_ID} .bo-link{background:none;border:0;padding:0;color:#8fb4ff;text-decoration:underline;cursor:pointer;font:inherit;font-size:.78rem}
+  #${ROOT_ID} .bo-link:hover{color:#b9d1ff}`;
 
   let clearTimer = null;
 
@@ -141,28 +155,44 @@
       layers.push(`<div class="bo-chip">${escapeHtml(chip)}</div>`);
     }
     if (card) {
-      if (card.backdrop) layers.push('<div class="bo-back"></div>');
+      const corner = !!card.corner; // corner = non-blocking toast (no backdrop; page stays usable)
+      if (card.backdrop && !corner) layers.push('<div class="bo-back"></div>');
+      const kindClass = (k) => (k === "go" || k === "yes" ? k : "stay");
       const buttons = (card.buttons || [])
         .map(
           (b, i) =>
-            `<button class="bo-btn bo-${b.kind === "go" ? "go" : "stay"}" data-i="${i}">${escapeHtml(b.label)}</button>`,
+            `<button class="bo-btn bo-${kindClass(b.kind)}" data-i="${i}">${escapeHtml(b.label)}</button>`,
         )
         .join("");
+      const checkbox = card.checkbox
+        ? `<label class="bo-check"><input type="checkbox" class="bo-checkbox"${card.checkbox.checked ? " checked" : ""} /> ${escapeHtml(card.checkbox.label)}</label>`
+        : "";
+      const links = (card.links || [])
+        .map((l, i) => `<button class="bo-link" data-li="${i}">${escapeHtml(l.label)}</button>`)
+        .join("");
       layers.push(
-        '<div class="bo-modal" role="dialog" aria-modal="true">' +
+        `<div class="${corner ? "bo-corner" : "bo-modal"}" role="dialog" aria-modal="${corner ? "false" : "true"}">` +
           `<div class="bo-tag">${escapeHtml(card.tag || "■ BRICK MODE")}</div>` +
           (card.title ? `<div class="bo-h">${escapeHtml(card.title)}</div>` : "") +
           (card.body ? `<p class="bo-reason">${escapeHtml(card.body)}</p>` : "") +
+          checkbox +
           (buttons ? `<div class="bo-actions">${buttons}</div>` : "") +
+          (links ? `<div class="bo-links">${links}</div>` : "") +
           "</div>",
       );
     }
     bo.innerHTML = layers.join("");
 
-    if (card && card.buttons) {
+    if (card) {
+      // Button/link handlers receive a context with the checkbox state (for "remember").
+      const ctx = () => ({ checked: !!bo.querySelector(".bo-checkbox")?.checked });
       bo.querySelectorAll(".bo-btn").forEach((el) => {
-        const b = card.buttons[Number(el.dataset.i)];
-        if (b && typeof b.onClick === "function") el.addEventListener("click", b.onClick);
+        const b = (card.buttons || [])[Number(el.dataset.i)];
+        if (b && typeof b.onClick === "function") el.addEventListener("click", () => b.onClick(ctx()));
+      });
+      bo.querySelectorAll(".bo-link").forEach((el) => {
+        const l = (card.links || [])[Number(el.dataset.li)];
+        if (l && typeof l.onClick === "function") el.addEventListener("click", () => l.onClick(ctx()));
       });
     }
 

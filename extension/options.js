@@ -49,7 +49,15 @@ function load() {
     $("model").value = cfg.model || "";
     $("tier1").value = ((cfg.tiers && cfg.tiers.tier1) || []).join("\n");
     $("tier3").value = ((cfg.tiers && cfg.tiers.tier3) || []).join("\n");
+    renderGatekeeper(cfg.decisions);
   });
+}
+
+function renderGatekeeper(d) {
+  d = d || { total: 0, allow: 0, block: 0, clarify: 0, correction: 0 };
+  $("gatekeeper").textContent = d.total
+    ? `${d.total} learned · ${d.allow} allow / ${d.block} block · ${d.clarify} from clarify / ${d.correction} corrections`
+    : "none learned yet";
 }
 
 function flash(id, text, ms = 2000) {
@@ -73,6 +81,15 @@ $("clearModel").addEventListener("click", () => {
     if (!res || res.error) return flash("modelSaved", "reset failed: " + ((res && res.error) || "unknown"), 3000);
     $("model").value = res.model || "";
     flash("modelSaved", `using default ✓ (${res.model})`);
+  });
+});
+
+$("clearDecisions").addEventListener("click", () => {
+  if (!confirm("Clear all learned allow/block decisions (clarify answers + corrections)?")) return;
+  chrome.runtime.sendMessage({ type: "clearDecisions" }, (res) => {
+    if (!res || res.error) return flash("gkSaved", "clear failed: " + ((res && res.error) || "unknown"), 3000);
+    renderGatekeeper(res.counts);
+    flash("gkSaved", "cleared ✓");
   });
 });
 
