@@ -116,6 +116,26 @@
       deepens the overlay. Stored locally in the browser (no service round-trip).
     </p>
 
+    <h2>Plan advance mode</h2>
+    <div class="row" style="gap:18px;flex-wrap:wrap">
+      <label class="muted" style="display:flex;align-items:center;gap:6px">
+        <input type="radio" name="advMode" id="advAuto" value="auto" style="width:auto" />
+        auto — a met stop-condition advances the queue (with an undo window)
+      </label>
+      <label class="muted" style="display:flex;align-items:center;gap:6px">
+        <input type="radio" name="advMode" id="advManual" value="manual" style="width:auto" />
+        manual — "advance now" lights up; nothing moves until you tap
+      </label>
+      <span class="row" style="gap:6px">
+        <label class="muted" for="undoSec">undo window (s):</label>
+        <input type="text" id="undoSec" style="width:60px" inputmode="numeric" />
+      </span>
+    </div>
+    <div>
+      <button id="saveAdvance">save advance mode</button>
+      <span id="advSaved" class="muted"></span>
+    </div>
+
     <h2>Focus tuning</h2>
     <div class="label muted">Per-page domains — judged per page/video, not whole-site (default: YouTube)</div>
     <textarea id="pageScope" rows="3" spellcheck="false" placeholder="youtube.com"></textarea>
@@ -129,6 +149,13 @@
       <button id="saveTuning">save focus tuning</button>
       <span id="tuningSaved" class="muted"></span>
     </div>
+
+    <h2>Workflow templates</h2>
+    <div id="tplMgr" class="muted">loading…</div>
+    <p class="muted">
+      Saved plan skeletons — launch them from the popup's template row. Save one from the popup
+      while a plan is running ("☆ save plan as template").
+    </p>
 
     <h2>Gatekeeper — learned decisions</h2>
     <div class="status" id="gatekeeper">…</div>

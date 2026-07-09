@@ -9,7 +9,7 @@
     "48": "icons/icon48.png",
     "128": "icons/icon128.png"
   },
-  "permissions": ["storage", "alarms", "declarativeNetRequest", "tabs", "offscreen"],
+  "permissions": ["storage", "alarms", "declarativeNetRequest", "tabs", "offscreen", "notifications"],
   "host_permissions": ["http://127.0.0.1:7373/*", "<all_urls>"],
   "background": { "service_worker": "background.js" },
   "action": {

@@ -47,15 +47,43 @@
         </div>
       </div>
       <button id="start">▶ start focus session</button>
+
+      <div class="label">…or a day plan (one block per line: task | minutes)</div>
+      <textarea id="planBlocks" rows="3" spellcheck="false" style="width:100%;background:#06180f;color:var(--fg);border:1px solid var(--line);border-radius:3px;padding:7px;font:inherit;resize:vertical" placeholder="write grant outline | 50&#10;lab check | 15&#10;review PRs | 25"></textarea>
+      <button id="startPlan">▶ start day plan</button>
+
+      <div id="tplPane" class="hidden">
+        <div class="label">…or a saved template</div>
+        <select id="tplSelect"></select>
+        <div id="tplSlots"></div>
+        <button id="startTpl">▶ start from template</button>
+      </div>
       <div id="warn" class="warn"></div>
     </div>
 
     <!-- Active session -->
     <div id="active" class="hidden">
+      <div id="planEsc" class="hidden" style="background:rgba(217,164,65,.12);border:1px solid var(--amber);color:var(--amber);border-radius:4px;padding:6px 8px;font-size:.75rem;margin-bottom:8px;text-align:center"></div>
+      <div class="phase" id="planStrip" style="display:none;color:var(--amber)"></div>
       <div class="phase" id="phase">work</div>
       <div class="timer" id="timer">25:00</div>
+      <div class="muted" id="planBudget" style="display:none;text-align:center"></div>
       <div class="label">Focus</div>
       <div class="focus" id="afocus">…</div>
+
+      <div id="planPane" class="hidden">
+        <div class="label">Steps</div>
+        <div id="planSteps" class="muted">(none)</div>
+        <div class="label">Queue</div>
+        <div id="planQueue" class="muted"></div>
+        <button id="planUndo" class="small hidden" style="border-color:var(--amber);color:var(--amber)">↩ undo switch</button>
+        <div class="row2">
+          <div><button id="planAdvance" class="small">advance now →</button></div>
+          <div><button id="planEnd" class="stop small">■ end plan</button></div>
+        </div>
+        <button id="planSaveTpl" class="small">☆ save plan as template</button>
+      </div>
+
       <div class="muted" id="stats"></div>
 
       <div class="label">This page</div>

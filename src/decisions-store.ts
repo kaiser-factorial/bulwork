@@ -44,6 +44,29 @@ export function domainUnit(url: string): string {
   }
 }
 
+/** Derive the per-page unit for a page-scoped domain (review fix): centralizing this SERVER-SIDE
+ *  means every caller gets correct per-video scoping automatically — including callers that can't
+ *  (or forget to) compute it themselves, like the background worker's tab-activation re-check.
+ *  Also fixes youtu.be short links, whose video id lives in the path, not a `?v=` query param. */
+export function derivePageUnit(url: string, pageScopeDomains: string[]): string | undefined {
+  let u: URL;
+  try {
+    u = new URL(url);
+  } catch {
+    return undefined;
+  }
+  const host = u.hostname.replace(/^www\./, "").toLowerCase();
+  const scoped = pageScopeDomains.some((d) => host === d || host.endsWith("." + d));
+  if (!scoped) return undefined;
+  if (host === "youtube.com" || host.endsWith(".youtube.com")) {
+    return u.searchParams.get("v") || undefined;
+  }
+  if (host === "youtu.be") {
+    return u.pathname.replace(/^\//, "").split("/")[0] || undefined;
+  }
+  return undefined; // unknown page-scoped domain — no unit rule yet, falls back to domain scope
+}
+
 function isEntry(v: unknown): v is LearnedDecision {
   if (!v || typeof v !== "object") return false;
   const e = v as Record<string, unknown>;

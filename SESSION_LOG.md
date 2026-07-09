@@ -393,3 +393,216 @@ early wave (Epics R, 0, U). All on branch `worktree-workload-early-wave` (draft 
 - **Early wave done: U ✓ R ✓ 0 ✓ S ✓ F ✓ H ✓.** Next: the plan layer — Epic A (plan queue), then
   (T, B) → C → D per `WORKLOAD_TICKETS.md`.
 
+---
+
+## Plan layer — Epic A (plan queue, no signals) — DONE 2026-07-08
+Branch `workload-plan-layer` (off master post-merge of PR #1).
+
+- **A1 types** (`types.ts`): `WorkloadPlan`, `WorkBlock` (reuses `FocusTask` — the keystone),
+  `Step`, `StopCondition` union + `GitPredicate` (structural only; evaluators = Epic B),
+  `RepeatSpec`, `SwapMode` (field stored; behavior = Epic B).
+- **A2 store** (`src/plan-store.ts`): `PlanStore {load/save/advance/clear}` +
+  `LocalPlanStore` (`.data/plan.json`, invalid → null) + **pure `advancePlan`** — finish block,
+  record `actualMinutes`, honour `repeat.requeue` (clones `id~N`, `maxPerDay` counts all copies,
+  steps/conditions reset on the clone), activate next pending or clear `activeBlockId`.
+- **A3 runtime** (`src/plan-runtime.ts`): the active block **delegates to the existing
+  `FocusSession`** (advance = end + start anchored to the next block's focus — adjudicator/tiers/
+  learned decisions untouched); advisory budget readout (elapsed/remaining/overBudget) on
+  `planView()`; monotonic `stateVersion`; `toggleStep`, `completeBlock` (manual-condition
+  fallback), `editPlan` (reorder pending tail / drop / extend budget / insert), `endPlan` (skips
+  the rest), `restorePlan()` re-hydrates on boot, `usePlanStore()` = the Epic-D seam.
+- **A4 routes** (`server.ts`): `GET /plan`; `POST /plan/start` (blocks by `task` or `projectId`),
+  `/plan/block/advance`, `/plan/block/step`, `/plan/block/complete`, `/plan/reorder`, `/plan/end`.
+  The focus-hijack safety property holds: during a plan the session focus (= active block) wins
+  over any per-call `task`.
+- **A5 extension**: background **adopts** the service's plan-anchored session for local enforcement
+  (alarms/DNR/badge — never starts a second one); plan-aware badge (budget minutes left; title
+  `2/3 · <focus> · Nm left`); popup gains a day-plan builder (`task | minutes` per line), plan
+  strip, budget readout, clickable step checklist, queue with glyphs (✓▶○✗ ↻), `advance now` /
+  `end plan`.
+- **Corpus**: `help/day-plans.md` added (the promised when-A-lands doc).
+- **Verified:** typecheck + node --check clean; **smoke 62/62** (16 new: start/anchor/budget,
+  hijack-safety, step persist + stateVersion, advance ×N with actualMinutes, repeat requeue +
+  maxPerDay cap, reorder keeps settled blocks, both end paths, single-session regression). Live:
+  **plan survives a service restart** (`restorePlan`), `plan.json` valid.
+- 🖐 Browser gate (Phase A): 3×1-min plan from the popup — badge `1/3`→`2/3`, step toggle persists
+  across popup reopen, advance/end, repeat block reappears once.
+
+## Plan layer — Epic T (workflow templates) — DONE 2026-07-08
+- **T1 types + store**: `WorkflowTemplate`/`Slot`/`FocusRef`/`TemplateBlock` in `types.ts`
+  (**documented divergence:** template `steps` are labels, not `Step[]` — templates never carry
+  done-state); `src/template-store.ts` with `TemplateStore` seam + `LocalTemplateStore`
+  (`.data/templates.json`, invalid→empty, cap 100).
+- **T2 expansion**: pure `expandTemplate` — slot binding (explicit binding > slot
+  `defaultProjectId` > clear throw), pattern `repeat: N` exact, `"until-end-of-day"` adds whole
+  patterns while their budget fits before local midnight (≥1 always; requires budgets; 48-block
+  cap). `POST /plan/from-template {templateId, bindings}` resolves each bound `focusRef` (explicit
+  task or Ledger project) and launches via the Epic-A `startPlan`.
+- **T3 CRUD + save-current**: `GET/POST /templates` (full body or `fromCurrent:{name,
+  parameterize}`), `DELETE /templates/:id` (first parameterized route; CORS now allows DELETE).
+  Pure `liftPlanToTemplate` lifts distinct projects into slots A/B/… when parameterizing, keeps
+  explicit tasks pre-bound, drops requeued `~N` clones (the repeat spec regenerates them).
+- **T4 UI**: popup picker gains a **saved template** row — per-slot binding (project select with
+  free-text task fallback, `defaultProjectId` preselected) → start; plan pane gains **☆ save plan
+  as template** (name prompt + parameterize confirm). Options page lists/deletes templates.
+- **Corpus**: templates + patterns sections added to `help/day-plans.md`.
+- **Verified:** typecheck + node --check clean; **smoke 77/77** (15 new: until-end-of-day at a
+  fixed 09:00 → exactly 3 patterns, alternation with bindings, unbound-slot throw, default-slot
+  fill, numeric repeat, lift-parameterize/keep-tasks/drop-clones, CRUD round-trip, from-template
+  A,B,A,B launch + session anchor, save-current → zero-slot relaunch **parity**, unbound-launch
+  clear error, DELETE).
+- 🖐 Browser gate (Phase T): save "alternating deep work" (A/B), relaunch binding two projects →
+  plan alternates; save a hand-built plan → relaunch parity; delete from options removes it from
+  the popup picker.
+
+## Plan layer — Epic B (watchers, swap policy, advance mode) — DONE 2026-07-08
+- **B1 watchers** (`src/watchers.ts`): `Evaluator {arm/poll}` per stop-condition on the ACTIVE
+  block. `git` (head-advanced vs a baseline SHA / merge-commit since arm / message-match since
+  arm), `ledger` (nextAction diff via `fetchProjects` — advancing the project in Ledger IS the
+  signal), `command` (**gated on `BRICK_ALLOW_COMMAND_CONDITIONS`**, 15s timeout), `manual`
+  (no poller). All fail-open (error/broken-repo → never fires; no baseline → refuses to guess) and
+  monotonic (met stays met). Interval loop in `plan-runtime` (`BRICK_WATCH_INTERVAL_MS` default
+  30s, unref'd), met flags persisted into the plan on change.
+- **B2 swap policy**: pure `decideSwap` (`condition|time|first|both` per §12) + `deriveSwapMode`
+  (both present → `first`) + `conditionsSatisfied` (Appendix A: stepsGate && any/all policy;
+  neither present → never).
+- **B3 advance mode + undo**: `BrickSettings` += `advanceMode` (default auto) + `undoWindowSec`
+  (default 30, clamped 5–600); per-block `advanceMode` override; blocks gain `ready`. Condition-
+  driven fire → **auto**: snapshot → advance → undo window (`POST /plan/undo-advance` restores,
+  re-anchors the session, marks the block ready and **suppresses re-fire** — no undo→advance loop);
+  **manual**: `ready:true`, queue waits. **Time-driven fire → always the nudge path** (`ready`,
+  never a silent flip — §12; Epic C escalates it). `/plan/start` accepts `stopConditions` (validated
+  shapes) + per-block `advanceMode`. One swap decision per block instance (fired-set dedup).
+- **B4 UI**: options gains **Plan advance mode** (auto/manual radios + undo-seconds, disabled when
+  manual); popup: "advance now → · ready" amber glow + **↩ undo switch** during the window
+  (Epic C polishes visuals).
+- **B5 verification — smoke 106/106** (29 new, all key-free): §12 truth table (4×4), derive
+  defaults, conditionsSatisfied gates; git evaluator on a real scratch repo (baseline → commit →
+  met → monotonic; message-match; broken repo never fires), command gating (off by default, exit
+  codes, expectExit), **fake `LEDGER_BIN`** fixture (baseline/change/revert-stays-met); live
+  integration at 150ms ticks: auto-advance + undo + **no re-fire after undo**, manual ready + tap,
+  time → ready-not-flip, ledger next-action change auto-advances, settings round-trip.
+- 🖐 Browser gate (Phase B): real repo + `swapMode:first` block — push a commit → auto-advance with
+  undo; manual mode → advance-now glows; real `LEDGER_BIN` next-action change completes a block
+  (the one check the fake can't cover).
+- NOTE: real Ledger repos live at `~/Projects/ledger_root/{ledger,ledger-cli,ledger-mcp}` — the
+  handoff's `../ledger/...` sibling paths are stale; matters for Epic D.
+
+## Plan layer — Epic C (escalating notifications) — DONE 2026-07-08
+- **C1 escalation clock** (`plan-runtime.ts`): `escalationFor(elapsed, budget)` →
+  `none | t-minus | t-0 | grace`, thresholds tunable via `BRICK_TMINUS_MIN` / `BRICK_GRACE_MIN`
+  (default 5 min each); exposed as `planView.active.escalation`; the watcher tick bumps
+  `stateVersion` on level transitions so clients can diff one number.
+- **C2 NotificationDispatcher** (`background.js`): 30s ticks during a plan; each tick derives
+  events — level transitions, auto-switch (activeBlockId changed with an undo window), manual
+  `ready` — and **dedups by a persisted `(plan, block, event)` key in `chrome.storage.local`**, so
+  each fires once even across service-worker restarts.
+- **C3 OS notifications**: `notifications` permission; toasts for T-0, grace re-nudge, auto-switch
+  (with "undo available"), and ready-to-advance. T-minus stays quiet (badge/popup only, per §6).
+- **C4 in-page switch card** (`content-guard.js` via the U1 overlay): `brick:switch` → bottom-right
+  non-blocking card ("Time's up on A — next: B?") with **Advance / Stay** (or **↩ Undo** after an
+  auto-switch); buttons hit the background's plan routes. Sent to the active tab only.
+- **C5 visuals**: badge colour tracks the ladder (amber T-minus → orange T-0 → deep red grace);
+  popup escalation banner ("budget ends in Xm · next: …" / "time's up" / "over by Xm — advance?").
+  The B4 ready-glow + undo button complete the Appendix-B picture.
+- **Verified:** smoke **108/108** — the C1 check walks a 0.6s-budget block through
+  `none→t-minus→t-0→grace` in order with version bumps (fractional thresholds via env). Extension
+  JS + manifest all check clean (dispatcher/card/banner are browser-🖐).
+- 🖐 Browser gate (Phase C): 1–2-min budget block → T-minus/T-0/grace each fire once across
+  popup + in-page + OS (worker console shows one dispatch per level); auto mode's undo works from
+  the page card; OS toast arrives with the browser backgrounded.
+
+**The plan layer is now A ✓ T ✓ B ✓ C ✓ — only Epic D (Ledger-native store) remains, which needs
+Corina's machine (ledger_root repos + Firestore creds).**
+
+## Code review + fix pass (2026-07-08)
+
+A thorough `/code-review high` over the entire day's diff (`fbacb4e...HEAD`, ~5.6k lines: the full
+early wave + plan layer) — 8 finder angles → 36 candidates → 16 adversarially verified → **15
+confirmed real bugs**. All fixed on this branch before merge. Two root causes explained most of the
+top findings:
+
+**Root cause 1 — service⇄extension sync only worked one direction.** Local enforcement (session
+anchor, Tier-1 DNR rules, alarms, badge) only re-synced when the EXTENSION initiated a plan change
+(its own message handlers called `adoptServiceSession`/`teardownLocal`). A SERVICE-initiated change
+— the watcher loop auto-advancing a block, an undo firing after a restart, the plan ending on its
+own — left the extension (and, separately, the service's own in-memory session after a restart)
+stale, with `/adjudicate` fail-open forever. **Fix:** `dispatchNotifications()` (renamed to run every
+tick regardless of who caused a change) now compares `planId`/`activeBlockId` against what it last
+knew and re-adopts/tears down on ANY drift — server- or extension-initiated, covering restarts too.
+`restorePlan()` now calls `anchorSession()` (it only re-armed watchers before). Extension handlers
+call a new `markPlanSynced()` right after their own adopt/teardown so the next tick's check is a
+no-op for the common case (no redundant re-adopt).
+
+**Root cause 2 — swap-fire dedup was a volatile Set, not persisted state.** The old `firedBlocks`
+Set (in-memory only) both (a) let a mere time-nudge permanently disarm a later condition fire under
+`swapMode:"first"`, and (b) evaporated on restart, so an undone block's still-met condition would
+auto-re-advance it minutes after the user said "not done." **Fix:** replaced with two independent,
+**persisted** per-block fields — `conditionFiredAt` / `timeFiredAt` — so a time nudge never blocks a
+later condition fire, and the undo-hold (stamped before the pre-advance snapshot is taken) survives
+a service restart. Repeat-block clones reset both fields fresh.
+
+**Other confirmed fixes, this branch:**
+- **Provider/model mismatch (V5):** a cross-provider model id (Anthropic-form on OpenRouter or vice
+  versa) 404s every call and, since adjudication fails open, silently disabled ALL Tier-2 blocking
+  forever with only a stderr line. `resolveModelForProvider()` now guards it — falls back to the
+  provider's own default with a loud warning instead of 404ing indefinitely.
+- **Provider-error observability (V14):** a fail-open from a provider outage was wire-identical to a
+  genuine model allow (same `stub:false`, no UI signal) — an outage looked like the tool working.
+  Added `providerError` on the result (surfaced on `/health.lastProviderError`); content-guard now
+  treats a `providerError` allow like a stub (skips the redundant phase-2 deepen call too).
+- **enforceTab missing the per-page unit (V6) / youtu.be path ids (V16b):** page-scope learned
+  decisions were invisible to the tab-activation/open-tab-sweep path, and youtu.be short links
+  (id in the path, not `?v=`) never got a unit at all. Fixed at the root: `derivePageUnit()` in
+  `decisions-store.ts` derives the unit **server-side** from the URL for both `/adjudicate` and
+  `/decisions/learn` whenever the caller omits one — one mechanism instead of asking every caller
+  to compute it correctly (content-guard's `learn()` now just says "this domain is page-scoped",
+  letting the server resolve the exact unit).
+- **Switch notification silently swallowed (V8):** was gated on the undo window still being open
+  by the time the next tick ran — a 30s window racing a 30-60s tick meant it often lost. Now fires
+  on any real block change within the same plan; the undo action is offered only when available.
+  (This also fixed the `TICK_ALARM` cadence flip-flopping — one constant `TICK_MINUTES = 0.5` always,
+  removing the 1min/0.5min split that `reconcile()` silently reintroduced mid-plan.)
+- **`advancePlan` accepted any blockId (V9):** advancing a *pending* block while another was active
+  stranded the active one forever (two "active" blocks). `advanceBlock` now rejects a non-active id.
+- **Budget-edit NaN/1-minute coercion (V10):** a missing or non-numeric `budgetMinutes` on
+  `/plan/reorder`'s budget edit silently became `1` or `NaN` (which read as instant "grace"
+  escalation). Now rejected with a clear error.
+- **Stop-condition plumbing gaps (V11):** `TemplateBlock` had no `stopConditions`/`advanceMode`/
+  `completionPolicy`, so save-as-template → relaunch silently stripped every watcher; `editPlan`'s
+  insert branch dropped the same fields even though its own input type declared them;
+  `completionPolicy:"all"` was unreachable through `/plan/start`. Fixed via one shared `mintBlock()`
+  constructor used by `startPlan` and `editPlan.insert`, template fields carried through
+  `liftPlanToTemplate`/`expandTemplate` (with a proper deep-clone per repeated instance — the
+  pattern-repeat loop was sharing one `stopConditions` array reference across all copies), and the
+  `/plan/start`+`/plan/reorder` body parsers now accept `completionPolicy`.
+- **Rabbit-hole 2× accrual (V7):** counted "1 minute per tick" but the tick period isn't always 1
+  minute (0.5 during plans) — now accrues by actual elapsed wall-clock time since the last
+  *consecutive* matching tick (resets on any gap or domain switch, so it never counts inactive time).
+- **Badge lost the break countdown during a plan (V12):** the plan branch always showed budget
+  minutes, even during a break. Now shows the real phase countdown on break, budget on work.
+- **`stopSession` ordering (V13):** re-ordered to tear down local enforcement (alarms/DNR/badge)
+  *before* the service call, matching the pre-plan-layer behavior — a wedged (not down) service can
+  no longer hold Tier-1 blocking open indefinitely after the user presses stop.
+- **`planStep` cache-invalidation gap (V16a):** the one plan-mutating message handler that didn't
+  reset the shared `/plan` cache — fixed for consistency (low real-world impact; the popup already
+  force-refreshes on its own).
+- Cheap efficiency fixes alongside: one shared `/plan` fetch per tick (was 2-3), `enforceOpenTabs`
+  parallelized (was serial per-tab model calls — up to 20+ sequential adjudications on session
+  start), `getConfig` routed through the existing 30s cache instead of a fresh round-trip + full
+  `decisionCounts` scan on every page navigation.
+
+**Deliberately NOT fixed (documented, not a regression):** undo-revert-of-unrelated-writes (V15) —
+the undo window is a whole-plan JSON snapshot, so a `toggleStep`/`editPlan` write landing inside the
+same ~5-30s window is reverted along with the advance. A real fix means undo as a targeted inverse
+operation (or an event log) rather than a snapshot — bigger than this pass; flagged for whoever
+picks up Epic D or a later B/C hardening pass.
+
+**Verification:** `npm run typecheck` + `node --check` (all 8 extension files) clean. **`npm run
+smoke` = 133/133** — the pre-existing 108 plus 25 new checks: a real service restart (kill + respawn
+against the same data dir) proving session re-anchoring and the hijack guard, the exact
+time-then-condition sequence that used to eat the condition fire, an undo-then-restart sequence
+proving the hold survives, non-active-block-advance rejection, bad-budget rejection, `all`-policy
+enforcement via a real git condition, template/insert field round-trips, a pure unit test for
+`resolveModelForProvider`, and the youtu.be/enforceTab unit-derivation fixes exercised live.
+

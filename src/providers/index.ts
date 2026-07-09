@@ -37,3 +37,17 @@ export function providerHasKey(): boolean {
     ? Boolean(process.env.ANTHROPIC_API_KEY)
     : Boolean(process.env.OPENROUTER_API_KEY);
 }
+
+/** Guard a model id against the active provider's namespace (review fix): OpenRouter ids are
+ *  `vendor/model`, Anthropic ids are bare. A cross-provider id would 404 on EVERY call and, since
+ *  adjudication fails open, silently disable all Tier-2 blocking — so a mismatched id falls back
+ *  to the provider's default with a loud stderr warning instead. */
+export function resolveModelForProvider(provider: VerdictProvider, model: string): string {
+  const namespaced = model.includes("/");
+  const mismatch = provider.name === "openrouter" ? !namespaced : namespaced;
+  if (!mismatch) return model;
+  process.stderr.write(
+    `[brick:model_mismatch] "${model}" is not a valid ${provider.name} model id — using the provider default "${provider.defaultModel}". Fix BRICK_MODEL / the options-page model.\n`,
+  );
+  return provider.defaultModel;
+}

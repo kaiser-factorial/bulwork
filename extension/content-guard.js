@@ -153,11 +153,15 @@
   // hold). Answering writes to the learned store when "remember" is checked; ignoring it fails open
   // (we simply don't re-nag this page load).
   const learn = (decision) => {
-    const unit = pageUnit();
     const msg = { type: "learn", url: location.href, decision, via: "clarify" };
-    if (unit) {
-      msg.scope = "page"; // page-scoped domains learn per video, not per whole site (0.7)
-      msg.unit = unit;
+    // Page-scoped domains learn per video, not per whole site (0.7). Request page scope whenever
+    // the DOMAIN is page-scoped, even if this client's own unit extraction came back empty (e.g. a
+    // youtu.be path-based link) — review fix: the server derives the unit from the URL itself as
+    // the single source of truth, so this no longer silently degrades to domain-scope learning.
+    if (isPageScoped()) {
+      msg.scope = "page";
+      const unit = pageUnit();
+      if (unit) msg.unit = unit; // pass it along as a hint; the server re-derives if absent
     }
     return chrome.runtime.sendMessage(msg).catch(() => {});
   };
@@ -279,6 +283,41 @@
     });
   };
 
+  // Plan switch/escalation card (Epic C4): a bottom-right, non-blocking card at swap time —
+  // "Time's up on A — start B?" with Advance / Stay (or Undo after an auto-switch). Reuses the
+  // shared overlay; buttons hit the background's plan routes.
+  const showSwitchCard = (msg) => {
+    if (!window.BrickOverlay) return;
+    const BTN = {
+      advance: {
+        label: "Advance →",
+        kind: "yes",
+        onClick: () => {
+          chrome.runtime.sendMessage({ type: "planAdvance" }).catch(() => {});
+          removeOverlay();
+        },
+      },
+      undo: {
+        label: "↩ Undo",
+        kind: "go",
+        onClick: () => {
+          chrome.runtime.sendMessage({ type: "planUndo" }).catch(() => {});
+          removeOverlay();
+        },
+      },
+      stay: { label: "Stay", kind: "stay", onClick: () => removeOverlay() },
+    };
+    window.BrickOverlay.show({
+      card: {
+        corner: true,
+        tag: "■ BRICK MODE",
+        title: msg.title || "Plan update",
+        body: msg.body || "",
+        buttons: (msg.actions || ["stay"]).map((a) => BTN[a]).filter(Boolean),
+      },
+    });
+  };
+
   // Background tells us a work phase re-engaged on this already-open tab.
   // brick:phase keeps the overlay synced with the Pomodoro: when the phase flips away from "work"
   // (break / session ended) any active grace-minute countdown is cleared, so the overlay doesn't
@@ -291,6 +330,7 @@
       if (msg.phase !== "work") removeOverlay();
       if (msg.phase === "work" || msg.phase === "break") showPhaseBorder(msg.phase);
     } else if (msg?.type === "brick:rabbithole") showRabbitHole(msg.domain, msg.minutes);
+    else if (msg?.type === "brick:switch") showSwitchCard(msg);
   });
 
   // Install an SPA-navigation hook on page-scoped domains so video→video changes re-adjudicate
@@ -362,7 +402,9 @@
       return;
     }
     // Deepen real Tier-2 verdicts (allow or ask) with the page's title; a stub/Tier-1/3 is final.
-    if (!phase1 || phase1.tier !== "tier2" || phase1.stub) return;
+    // A providerError allow is a fail-open, not a judged verdict (review fix) — treat it like a
+    // stub too, so an outage doesn't spend a second doomed provider call on every navigation.
+    if (!phase1 || phase1.tier !== "tier2" || phase1.stub || phase1.providerError) return;
 
     const deeper = async () => {
       const title = pageSignal();

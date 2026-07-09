@@ -2,7 +2,7 @@ import { outputLeakedCanary, onShieldEvent, emitShieldEvent } from "@local/shiel
 import type { AdjudicationInput, AdjudicationResult, Decision, Verdict } from "./types.js";
 import { SYSTEM_PROMPT, SYSTEM_CANARY, buildUserPrompt } from "./prompt.js";
 import { groundFocus } from "./grounding.js";
-import { selectProvider } from "./providers/index.js";
+import { resolveModelForProvider, selectProvider } from "./providers/index.js";
 import type { RawVerdict, VerdictTool } from "./providers/index.js";
 
 onShieldEvent((ev) => {
@@ -40,8 +40,12 @@ const VALID_DECISIONS: readonly Decision[] = ["allow", "block", "ask"];
 export async function adjudicate(input: AdjudicationInput): Promise<AdjudicationResult> {
   const start = Date.now();
   const provider = selectProvider();
-  // R2: per-request override wins; then the env seed; then the active provider's default.
-  const model = input.model ?? process.env.BRICK_MODEL ?? provider.defaultModel;
+  // R2: per-request override wins; then the env seed; then the active provider's default — guarded
+  // against a cross-provider id, which would 404 every call and silently fail open forever.
+  const model = resolveModelForProvider(
+    provider,
+    input.model ?? process.env.BRICK_MODEL ?? provider.defaultModel,
+  );
   // Fast-follow: enrich with project context from the Memory Hub (no-op unless BRICK_MEM_BIN set).
   const grounding = input.grounding ?? (await groundFocus(input.focus));
 
@@ -72,6 +76,7 @@ export async function adjudicate(input: AdjudicationInput): Promise<Adjudication
       model: modelUsed,
       latencyMs: Date.now() - start,
       downgraded: false,
+      providerError: true, // observable fail-open — never a judged allow (review fix)
     };
   }
 

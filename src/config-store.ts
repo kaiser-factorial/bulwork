@@ -67,6 +67,11 @@ export interface BrickSettings {
   rabbitHoleDomains?: string[];
   /** Minutes of active foreground time on a flagged domain before the first nudge (0.8). */
   rabbitHoleMinutes?: number;
+  /** How a met stop-condition lands (Epic B3, §8.1): auto-advance with undo, or light up
+   *  "advance now" and wait for the tap. Default "auto". */
+  advanceMode?: "auto" | "manual";
+  /** Undo window after an auto-advance, seconds (only used by "auto"). Default 30. */
+  undoWindowSec?: number;
 }
 
 const MAX_DOMAINS = 100;
@@ -94,6 +99,10 @@ function sanitizeSettings(p: Record<string, unknown>): BrickSettings {
   if (rabbit) out.rabbitHoleDomains = rabbit;
   if (typeof p.rabbitHoleMinutes === "number" && Number.isFinite(p.rabbitHoleMinutes)) {
     out.rabbitHoleMinutes = Math.min(600, Math.max(1, Math.round(p.rabbitHoleMinutes)));
+  }
+  if (p.advanceMode === "auto" || p.advanceMode === "manual") out.advanceMode = p.advanceMode;
+  if (typeof p.undoWindowSec === "number" && Number.isFinite(p.undoWindowSec)) {
+    out.undoWindowSec = Math.min(600, Math.max(5, Math.round(p.undoWindowSec)));
   }
   return out;
 }

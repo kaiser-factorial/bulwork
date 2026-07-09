@@ -5,9 +5,22 @@
 
 ---
 
-## ▶ Next up — Workload + gatekeeper layer (design + tickets ready, 2026-07-08)
+## ▶ Next up — Epic D (Ledger-native store) — the last epic
 
-**Start here for the next build phase.** Two new docs drive everything below:
+**Where we are (2026-07-08):** the early wave (U/R/0/S/F/H) is **merged to master** (PR #1), and the
+**complete local-first plan layer — Epics A, T, B, C — is on PR #2** (`workload-plan-layer`,
+smoke 108/108). 🖐 Browser gates are pending on PR #2 (checklists in the PR comments).
+
+**Epic D setup (start the next session with this):** the Ledger repos live at
+`~/Projects/ledger_root/{ledger,ledger-cli,ledger-mcp}` — NOT the `../ledger` sibling paths written
+below. Launch the session from a directory spanning brick + ledger_root (or `--add-dir`), set
+`LEDGER_BIN` to the built CLI, and have Firestore creds ready. D1 adds `ledger plan
+show/advance/step --json` verbs in the Ledger repo; D2 drops `LedgerPlanStore`/`LedgerTemplateStore`
+behind the existing `PlanStore`/`TemplateStore` seams (`usePlanStore()` is the hook) + a one-shot
+`.data` migration; then re-run the Phase A/T gates against the Ledger backend. H5 (shared help
+corpus into Ledger's focus agent) rides along.
+
+The two docs that drive everything:
 
 - **`WORKLOAD_DESIGN.md`** — full system design. Workload/day-plan queue, swap policy, templates,
   advance-mode setting, notifications, Ledger-native store (§1–13); **gatekeeper quality** (§14),
@@ -86,23 +99,37 @@ WAVE 1 — two lanes in parallel (no cross-lane file overlap):
   learned/precedence + page-scope + refocus + help retrieval all verified live. 🖐 **A consolidated
   browser pass is the one open gate** (checklist on PR #1: grace regression, clarify card, popup
   levers, model picker, YouTube SPA, rabbit-hole at a test threshold, border/sound, grace pause/cap,
-  help panel). See `SESSION_LOG.md` (bottom) for per-epic detail. **Next:** the plan layer — Epic A
-  (plan queue), then (T, B) → C → D.
+  help panel). **Merged to master.** See `SESSION_LOG.md` for per-epic detail.
+- **Plan layer, Epics A + T + B + C — DONE (2026-07-08, branch `workload-plan-layer`, PR #2,
+  smoke 108/108).** B: stop-condition watchers (git/ledger/command/manual — fail-open, monotonic),
+  the §12 swap combinator, advance-mode auto-with-undo vs manual (`/plan/undo-advance`; time-driven
+  swaps always nudge). C: escalation clock (t-minus/t-0/grace), NotificationDispatcher with
+  persisted once-per-event dedup, OS toasts, in-page Advance/Stay/Undo card, badge colour ladder +
+  popup banner. Earlier entry (A+T detail) follows:
+  **A ✓** day-plan queue: `WorkloadPlan/WorkBlock/Step` types, `LocalPlanStore` (`.data/plan.json`,
+  Ledger-native shape behind the `PlanStore` seam), `PlanRuntime` (active block **delegates to the
+  existing FocusSession** — adjudicator/tiers/learned decisions/grace untouched; advisory budgets;
+  monotonic `stateVersion`; survives restarts), `/plan*` routes, plan-aware badge
+  (`2/3 · <focus> · Nm left`), popup builder/queue/steps UI. **T ✓** workflow templates:
+  `LocalTemplateStore`, pure `expandTemplate` (slot binding, `repeat: N`, `until-end-of-day`),
+  `liftPlanToTemplate` (save-current, parameterize projects→slots), `/templates` CRUD +
+  `/plan/from-template`, popup slot-binding picker + save-as-template, options manager.
+  `npm run smoke` = **77/77** hermetic. 🖐 Phase A/T browser gates on PR #2. **Next: B → C → D.**
 
 ## Resume / verify
 
 ```bash
 cd brick && npm install
-npm run smoke          # builds + asserts the service end-to-end (no key needed)
-npm run serve          # then load extension/ unpacked in Chrome (see EXTENSION.md)
-npm run eval           # needs ANTHROPIC_API_KEY — validates adjudication accuracy
+npm run smoke             # builds + self-tests the whole service — hermetic (no key, no ledger)
+npm run serve             # then load extension/ unpacked in Chrome (see EXTENSION.md)
+npm run eval              # needs a provider key — validates adjudication accuracy
+npm run eval:corrections  # scores the adjudicator against YOUR recorded clarify answers/corrections
 ```
 
 ## Blocked on you (status)
 
-1. ~~**`ANTHROPIC_API_KEY`**~~ — **RESOLVED (2026-07-08).** Key is in; adjudication runs live.
-   Next: Epic R switches the adjudicator to **OpenRouter** (one key, many models, model picker on the
-   options page) — see `WORKLOAD_DESIGN.md` §17 / `WORKLOAD_TICKETS.md` Epic R.
+1. ~~**API keys**~~ — **RESOLVED.** Both `OPENROUTER_API_KEY` (default provider, model picker on the
+   options page) and `ANTHROPIC_API_KEY` (fallback path) are in `.env`; adjudication runs live.
 2. ~~**A browser**~~ — **RESOLVED.** Running in Chrome. (Per-site content-script tuning on live
    claude.ai / Gemini / ChatGPT is still worth doing, but it's no longer a blocker.)
 3. **Firestore creds + Ledger-app decision** — still open. This is **Epic D** (Ledger-native store)
@@ -120,29 +147,32 @@ localhost fix). See SESSION_LOG "Agent-assisted hardening".
 ```
 src/
   cli.ts / prepend-cli.ts / eval.ts   CLIs + eval harness
-  ledger.ts        focus-task resolution (--task/--project/--last; no "active" state)
-  adjudicate.ts    Claude Haiku 4.5, forced tool use, conservative-allow
-  prompt.ts        system + few-shot (+ optional grounding block)
-  prepend.ts       soft-nudge AI-chat header
-  tiers.ts         tier1/tier3 defaults + classify()
-  config-store.ts  persisted, editable tier lists (.data/tiers.json)
-  session.ts       Pomodoro/focus session state + JSONL log (+ Firestore stub)
-  grounding.ts     Memory-Hub grounding (env-gated placeholder)
-  server.ts        local HTTP service (:7373) the extension talks to
-extension/         MV3 extension (manifest, background, content scripts, popup, options, block page)
-scripts/smoke.mjs  service smoke test
+  ledger.ts          focus-task resolution (--task/--project/--last; no "active" state)
+  adjudicate.ts      provider-agnostic adjudication: forced tool use, allow|block|ask,
+                     conservative-allow, fail-open (R3)
+  providers/         VerdictProvider seam: openrouter.ts (default) + anthropic.ts (fallback),
+                     recordVerdict (forced tool) + chat (help agent, optional read-only tools)
+  prompt.ts          system + few-shot (+ grounding block, ask guidance, source leniency)
+  decisions-store.ts learned allow/block per (focusKey, scope, unit) + precedence + eval export
+  prepend.ts         soft-nudge AI-chat header
+  tiers.ts           tier1/tier3 defaults + classify()
+  config-store.ts    tier lists + BrickSettings (model, focus tuning) — .data/*.json
+  session.ts         Pomodoro/focus session state + JSONL log (+ Firestore stub) + refocus
+  plan-store.ts      PlanStore seam + LocalPlanStore + pure advancePlan (Epic A)
+  plan-runtime.ts    queue runtime: block↔session anchoring, budgets, steps, stateVersion (Epic A)
+  template-store.ts  TemplateStore + expandTemplate + liftPlanToTemplate (Epic T)
+  help.ts            grounded /help Q&A: corpus retrieval + read-only state tools (Epic H)
+  grounding.ts       Memory-Hub grounding (env-gated placeholder)
+  server.ts          local HTTP service (:7373) — adjudicate/session/plan/templates/help/config
+help/*.md            curated help corpus (the help agent answers ONLY from these)
+extension/           MV3: manifest, background, overlay.js (U1 primitive), content-guard,
+                     content-prepend, offscreen audio, popup (plans/templates), options, block page
+scripts/             smoke.mjs (hermetic self-test) + export-cases.mjs (corrections → eval cases)
 ```
 
-**Planned new modules (per `WORKLOAD_TICKETS.md` — not yet created):**
+**Still-unbuilt (per `WORKLOAD_TICKETS.md`):**
 ```
-src/providers/*.ts     openrouter.ts + anthropic.ts behind a VerdictProvider seam   (Epic R)
-src/decisions-store.ts learned allow/block per (focusKey, scope, unit)              (Epic 0)
-src/help.ts            grounded /help Q&A over the corpus                           (Epic H)
-help/*.md              curated usage/FAQ corpus (shared with Ledger's focus agent)  (Epic H)
-src/plan-store.ts      PlanStore + LocalPlanStore (Ledger-native shape)             (Epic A/D)
-src/plan-runtime.ts    block queue, budgets, swap policy, steps                     (Epic A/B)
-src/template-store.ts  WorkflowTemplate CRUD + expansion                            (Epic T)
-src/watchers.ts        git / ledger / command stop-condition evaluators            (Epic B)
-extension/overlay.js   shared transient-treatment primitive                        (Epic U)
-extension/offscreen.*  offscreen audio for session-state cues                       (Epic S)
+Epic D only: `ledger plan …` CLI verbs (Ledger repo), LedgerPlanStore /
+LedgerTemplateStore behind the existing store seams, .data → Ledger migration.
+(src/watchers.ts, swap policy, advance mode, escalation + dispatcher all landed with B/C.)
 ```

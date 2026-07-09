@@ -53,9 +53,31 @@ function load() {
     $("pageScope").value = (s.pageScopeDomains || ["youtube.com"]).join("\n");
     $("rabbitDomains").value = (s.rabbitHoleDomains || ["youtube.com"]).join("\n");
     $("rabbitMins").value = String(s.rabbitHoleMinutes || 45);
+    const mode = s.advanceMode || "auto";
+    $("advAuto").checked = mode === "auto";
+    $("advManual").checked = mode === "manual";
+    $("undoSec").value = String(s.undoWindowSec || 30);
+    $("undoSec").disabled = mode === "manual"; // only the auto path uses the undo window
     renderGatekeeper(cfg.decisions);
   });
 }
+
+// Plan advance mode (Epic B4): auto-with-undo vs manual "advance now".
+for (const id of ["advAuto", "advManual"]) {
+  $(id).addEventListener("change", () => {
+    $("undoSec").disabled = $("advManual").checked;
+  });
+}
+$("saveAdvance").addEventListener("click", () => {
+  const settings = {
+    advanceMode: $("advManual").checked ? "manual" : "auto",
+    undoWindowSec: Math.max(5, Math.min(600, Number($("undoSec").value) || 30)),
+  };
+  chrome.runtime.sendMessage({ type: "saveSettings", settings }, (res) => {
+    if (!res || res.error) return flash("advSaved", "save failed: " + ((res && res.error) || "unknown"), 3000);
+    flash("advSaved", "saved ✓");
+  });
+});
 
 function renderGatekeeper(d) {
   d = d || { total: 0, allow: 0, block: 0, clarify: 0, correction: 0 };
@@ -87,6 +109,39 @@ $("clearModel").addEventListener("click", () => {
     flash("modelSaved", `using default ✓ (${res.model})`);
   });
 });
+
+// Workflow templates (Epic T4) — list + delete; creation happens from the popup.
+function loadTemplateMgr() {
+  chrome.runtime.sendMessage({ type: "getTemplates" }, (res) => {
+    const box = $("tplMgr");
+    if (!res || res.error) {
+      box.textContent = "templates unavailable: " + ((res && res.error) || "service unreachable");
+      return;
+    }
+    const list = res.templates || [];
+    box.textContent = "";
+    if (!list.length) {
+      box.textContent = "none saved yet";
+      return;
+    }
+    for (const t of list) {
+      const row = document.createElement("div");
+      row.style.padding = "3px 0";
+      const del = document.createElement("button");
+      del.textContent = "delete";
+      del.style.cssText = "margin:0 8px 0 0;padding:2px 8px;font-size:.75rem;border-color:#ff6b6b;color:#ff6b6b";
+      del.addEventListener("click", () => {
+        if (!confirm(`Delete template "${t.name}"?`)) return;
+        chrome.runtime.sendMessage({ type: "deleteTemplate", id: t.id }, () => loadTemplateMgr());
+      });
+      const label = document.createElement("span");
+      label.textContent = `${t.name} — ${t.blocks.length} blocks${t.slots?.length ? `, slots: ${t.slots.map((s) => s.key).join("/")}` : ""}${t.pattern ? ` · ×${t.pattern.repeat}` : ""}`;
+      row.appendChild(del);
+      row.appendChild(label);
+      box.appendChild(row);
+    }
+  });
+}
 
 // "Ask about BRICK" (Epic H3) — grounded usage Q&A over the service's /help route.
 const helpHistory = []; // short in-page history: [{role, content}]
@@ -229,3 +284,4 @@ $("reset").addEventListener("click", () => {
 load();
 loadModels();
 loadFeedback();
+loadTemplateMgr();
