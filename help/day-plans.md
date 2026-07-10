@@ -14,6 +14,19 @@ In the popup (no session running), fill the **day plan** textarea — one block 
 `task | minutes` (minutes optional) — and press **▶ start day plan**. The first block goes active
 immediately. The work/break minutes fields above apply to the whole plan's Pomodoro cycle.
 
+Add **sub-tasks** to a block by starting a line with `-` (or `•`/`*`); each becomes a checkable step
+under that block, toggled from the popup. Sub-tasks attach to the block line directly above them:
+
+```
+LoveSmarter | 50
+- gather notes
+- confirm hypotheses
+- run demos
+Build | 40
+- test TTS
+- try lesson
+```
+
 ## Budgets are advisory
 
 A block's minutes are an attention allocation, not a hard stop: when the budget runs out nothing is

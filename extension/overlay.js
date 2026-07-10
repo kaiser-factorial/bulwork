@@ -9,6 +9,11 @@
 // (never blocks page clicks) — only an inner card or a chip is interactive. Calling show() again
 // replaces the current treatment (never stacks). Honours prefers-reduced-motion (fade, never a
 // flash/strobe).
+//
+// VENDORED ELSEWHERE: voicelogger-cli/extension/overlay.js is a manual copy of this file (its
+// test-log indicator reuses this same primitive). ledger_root isn't a monorepo — brick and
+// voicelogger-cli are independently pushed GitHub repos — so there's no shared package; if you
+// change this file, copy the change into voicelogger-cli/extension/overlay.js by hand too.
 (() => {
   if (window.BrickOverlay) return; // idempotent across re-injection
 

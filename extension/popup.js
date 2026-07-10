@@ -88,6 +88,11 @@ async function renderPlan() {
     for (const s of block.steps) {
       const row = document.createElement("div");
       row.style.cursor = "pointer";
+      row.style.transition = "color .2s, opacity .2s";
+      // Unchecked = lit (bright); checked = dull + struck through (Corina's request).
+      row.style.color = s.done ? "var(--dim)" : "var(--fg)";
+      row.style.opacity = s.done ? "0.6" : "1";
+      row.style.textDecoration = s.done ? "line-through" : "none";
       row.textContent = `${s.done ? "☑" : "☐"} ${s.label}`;
       row.addEventListener("click", async () => {
         await send({ type: "planStep", blockId: block.id, stepId: s.id });
@@ -207,21 +212,31 @@ $("startTpl").addEventListener("click", async () => {
 });
 
 $("startPlan").addEventListener("click", async () => {
-  const lines = $("planBlocks")
-    .value.split("\n")
-    .map((l) => l.trim())
-    .filter(Boolean);
-  if (!lines.length) {
-    $("warn").textContent = "add at least one block: task | minutes";
-    return;
-  }
-  const blocks = lines.map((l) => {
-    const [task, mins] = l.split("|").map((s) => s.trim());
+  // Blocks are top-level lines `task | minutes`; a line starting with -, •, or * is a sub-task
+  // (step) attached to the block above it. Steps already flow through /plan/start → mintBlock →
+  // the popup checklist, so this parse is the only missing link.
+  const blocks = [];
+  for (const raw of $("planBlocks").value.split("\n")) {
+    const line = raw.trim();
+    if (!line) continue;
+    const sub = line.match(/^[-•*]\s*(.+)$/);
+    if (sub) {
+      if (!blocks.length) continue; // a sub-task before any block — ignore
+      const label = sub[1].trim();
+      if (label) (blocks[blocks.length - 1].steps ||= []).push(label.slice(0, 200));
+      continue;
+    }
+    const [task, mins] = line.split("|").map((s) => s.trim());
+    if (!task) continue;
     const b = { task };
     const m = Number(mins);
     if (Number.isFinite(m) && m > 0) b.budgetMinutes = m;
-    return b;
-  });
+    blocks.push(b);
+  }
+  if (!blocks.length) {
+    $("warn").textContent = "add a block: task | minutes (indent sub-tasks with -)";
+    return;
+  }
   const opts = {
     blocks,
     workMinutes: Number($("work").value) || 25,
