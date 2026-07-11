@@ -7,5 +7,5 @@ dist/
 .DS_Store
 
 # Internal build / session docs — not useful to end users
-USER_HANDOFF.md
+USER_HANDOFF_ARCHIVED.md
 
