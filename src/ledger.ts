@@ -6,7 +6,14 @@ const execFileAsync = promisify(execFile);
 
 // Set LEDGER_BIN to the path of the built ledger CLI, or leave unset to disable
 // project-list features (the service still works; /projects returns []).
-const LEDGER_BIN = process.env.LEDGER_BIN ?? "";
+// Read lazily (not cached in a module-level const): this module is imported by
+// server.ts before server.ts's own process.loadEnvFile() call runs (ES module
+// imports always execute before the importing file's top-level code, regardless
+// of where in that file the loadEnvFile() call appears), so a const evaluated at
+// import time would permanently miss a LEDGER_BIN set via .env.
+function ledgerBin(): string {
+  return process.env.LEDGER_BIN ?? "";
+}
 
 /** Subset of the `ledger status --json` project shape we use. */
 interface LedgerProject {
@@ -19,8 +26,9 @@ interface LedgerProject {
 }
 
 export async function fetchProjects(): Promise<LedgerProject[]> {
-  if (!LEDGER_BIN) return [];
-  const { stdout } = await execFileAsync(LEDGER_BIN, ["status", "--json"], {
+  const bin = ledgerBin();
+  if (!bin) return [];
+  const { stdout } = await execFileAsync(bin, ["status", "--json"], {
     maxBuffer: 10 * 1024 * 1024,
   });
   const data: unknown = JSON.parse(stdout);
