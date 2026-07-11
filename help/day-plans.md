@@ -38,7 +38,7 @@ on stays yours, unless the block's swap mode says otherwise.
 A block can carry auto-detected stop conditions: **git** (a ref advanced, a merge landed, or a
 commit message matching a pattern — e.g. "done when I push"), **ledger** (the project's Next Action
 changed — advancing the project in Ledger is the completion signal), **command** (a shell command
-exits successfully — off by default, enabled only with the BRICK_ALLOW_COMMAND_CONDITIONS
+exits successfully — off by default, enabled only with the BULWORK_ALLOW_COMMAND_CONDITIONS
 environment flag), and **manual** (always available — the popup's advance is the escape hatch).
 The service polls the active block's conditions about every 30 seconds. Detection never
 false-completes: a broken repo or failing check simply never fires, and a met condition stays met.

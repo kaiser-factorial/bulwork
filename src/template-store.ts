@@ -8,6 +8,7 @@ import type {
   WorkloadPlan,
   WorkflowTemplate,
 } from "./types.js";
+import { bulworkEnv } from "./env.js";
 
 // Workflow templates (Epic T): CRUD over `.data/templates.json` behind a TemplateStore interface
 // (mirrors PlanStore — local now, Ledger-native later), plus the two pure workhorses:
@@ -22,7 +23,7 @@ export interface TemplateStore {
 }
 
 const DATA_DIR =
-  process.env.BRICK_DATA_DIR ?? fileURLToPath(new URL("../.data/", import.meta.url));
+  bulworkEnv("DATA_DIR") ?? fileURLToPath(new URL("../.data/", import.meta.url));
 const TEMPLATES_PATH = join(DATA_DIR, "templates.json");
 const MAX_TEMPLATES = 100;
 

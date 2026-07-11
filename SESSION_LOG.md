@@ -1,5 +1,7 @@
 # BRICK MODE — build session log
 
+> *Historical note: this project was renamed brick → bulwork in July 2026. This document predates the rename and is left as originally written.*
+
 Running log of autonomous build work. Newest entries at the bottom. **DIVERGENCE** marks any
 deviation from `../ledger/docs/BRICK_MODE_PLAN.md`. Date basis: 2026-06-26.
 

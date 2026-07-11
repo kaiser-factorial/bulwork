@@ -2,12 +2,16 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <title>BRICK MODE — settings</title>
+    <title>BULWORK MODE — settings</title>
     <style>
       :root { --bg:#0a0f0a; --fg:#6ee7a8; --dim:#2f6f4e; --red:#ff6b6b; --line:#173b29; --amber:#d9a441; }
       body { background: var(--bg); color: var(--fg); font: 14px ui-monospace, Menlo, monospace;
         max-width: 640px; margin: 0 auto; padding: 32px 24px; }
       .brick { letter-spacing: 0.35em; color: var(--red); font-weight: 700; }
+      /* two-tone BULWORK wordmark: BUL in the existing dim/inactive gold, WORK in the existing
+         session-yellow (both already used for card text in overlay.js) — never mixed-case. */
+      .bw-bul { color: #cda94e; }
+      .bw-work { color: #fbd962; }
       h2 { border-bottom: 1px solid var(--line); padding-bottom: 6px; margin-top: 28px; font-size: 1rem; }
       ul { list-style: none; padding: 0; }
       li { padding: 3px 0; }
@@ -30,7 +34,7 @@
     </style>
   </head>
   <body>
-    <div class="brick">■ BRICK MODE — settings</div>
+    <div class="brick">■ <span class="bw-bul">BUL</span><span class="bw-work">WORK</span> MODE — settings</div>
 
     <h2>Service</h2>
     <div class="status" id="status">checking 127.0.0.1:7373 …</div>
@@ -75,14 +79,14 @@
       session picks up the changes.
     </p>
 
-    <h2>Ask about BRICK</h2>
+    <h2>Ask about BULWORK</h2>
     <div id="helpLog" style="display:none;max-height:320px;overflow-y:auto;border:1px solid var(--line);border-radius:3px;padding:10px;margin-bottom:8px"></div>
     <div class="row">
       <input type="text" id="helpQ" spellcheck="false" placeholder="e.g. How do I add a Tier-1 site? What does the remember checkbox do?" />
       <button id="helpAsk" style="margin-top:0;width:auto;white-space:nowrap">ask</button>
     </div>
     <p class="muted">
-      A grounded assistant that answers from BRICK's own documentation (and can read current
+      A grounded assistant that answers from BULWORK's own documentation (and can read current
       config/session state). It won't invent settings — if something isn't in the docs it says so.
       Uses your configured provider and model.
     </p>

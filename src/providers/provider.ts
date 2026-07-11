@@ -67,7 +67,7 @@ export interface ChatResult {
 
 export interface VerdictProvider {
   readonly name: "openrouter" | "anthropic";
-  /** A sensible default model id for this provider, used when BRICK_MODEL is unset. */
+  /** A sensible default model id for this provider, used when BULWORK_MODEL is unset. */
   readonly defaultModel: string;
   recordVerdict(req: VerdictRequest): Promise<VerdictResult>;
   /** Plain conversational completion (no forced tool) — the help agent's channel (Epic H). */

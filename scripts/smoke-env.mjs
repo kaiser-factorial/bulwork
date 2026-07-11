@@ -5,7 +5,7 @@ import { chmodSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-const dir = mkdtempSync(join(tmpdir(), "brick-fakeledger-"));
+const dir = mkdtempSync(join(tmpdir(), "bulwork-fakeledger-"));
 const stateFile = join(dir, "state.json");
 
 export function setLedgerProjects(projects) {

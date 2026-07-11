@@ -1,9 +1,9 @@
 {
-  "name": "brick-adjudicator",
+  "name": "bulwork",
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "BRICK MODE Phase-1 prototype: focus-task-aware allow/block adjudicator (Ledger active project + Claude Haiku 4.5). No daemon, no enforcement — pure validation of the novel core.",
+  "description": "BULWORK MODE Phase-1 prototype: focus-task-aware allow/block adjudicator (Ledger active project + Claude Haiku 4.5). No daemon, no enforcement — pure validation of the novel core.",
   "bin": {
     "brick": "dist/cli.js",
     "brick-prepend": "dist/prepend-cli.js",

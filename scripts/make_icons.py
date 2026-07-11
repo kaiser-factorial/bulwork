@@ -1,16 +1,16 @@
 #!/usr/bin/env python3
-"""Generate the BRICK MODE extension icons (yellow running-bond brick wall, full-bleed) from
-extension/icons/brick.svg. Prefers cairosvg (exact SVG render); falls back to drawing with Pillow.
+"""Generate the BULWORK MODE extension icons (yellow running-bond brick wall, full-bleed) from
+extension/icons/bulwork.svg. Prefers cairosvg (exact SVG render); falls back to drawing with Pillow.
 Writes icon16/32/48/128.png into extension/icons/.  Run: python3 scripts/make_icons.py"""
 import os
 import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ICONS = os.path.join(HERE, "..", "extension", "icons")
-SVG = os.path.join(ICONS, "brick.svg")
+SVG = os.path.join(ICONS, "bulwork.svg")
 SIZES = (16, 32, 48, 128)
 
-# Design constants (in the 128-unit viewBox), kept in sync with brick.svg.
+# Design constants (in the 128-unit viewBox), kept in sync with bulwork.svg.
 MORTAR = (230, 168, 54, 255)   # #E6A836
 BRICK = (251, 217, 98, 255)    # #FBD962
 OUTLINE = (236, 192, 76, 255)  # #ECC04C

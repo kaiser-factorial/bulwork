@@ -1,23 +1,24 @@
-// BRICK MODE — shared transient-treatment overlay primitive (Epic U1).
+// BULWORK MODE — shared transient-treatment overlay primitive (Epic U1).
 //
 // One reusable full-viewport screen treatment that the grace overlay (F1/F2), the phase-change
 // border (S1), and the clarify card (0.3) all render through — so they don't each re-implement
 // full-screen rendering or collide in content-guard.js.
 //
 // Loaded as a content script BEFORE content-guard.js (same isolated world), it exposes
-// `window.BrickOverlay`. The layer is fixed, high-z-index, and pointer-events:none by default
+// `window.BulworkOverlay` (with a temporary `window.BrickOverlay` back-compat alias — see the
+// bottom of this file). The layer is fixed, high-z-index, and pointer-events:none by default
 // (never blocks page clicks) — only an inner card or a chip is interactive. Calling show() again
 // replaces the current treatment (never stacks). Honours prefers-reduced-motion (fade, never a
 // flash/strobe).
 //
 // VENDORED ELSEWHERE: voicelogger-cli/extension/overlay.js is a manual copy of this file (its
-// test-log indicator reuses this same primitive). ledger_root isn't a monorepo — brick and
+// test-log indicator reuses this same primitive). ledger_root isn't a monorepo — bulwork and
 // voicelogger-cli are independently pushed GitHub repos — so there's no shared package; if you
 // change this file, copy the change into voicelogger-cli/extension/overlay.js by hand too.
 (() => {
-  if (window.BrickOverlay) return; // idempotent across re-injection
+  if (window.BulworkOverlay) return; // idempotent across re-injection
 
-  const ROOT_ID = "brick-overlay-root";
+  const ROOT_ID = "bulwork-overlay-root";
   const reducedMotion = () => {
     try {
       return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -46,7 +47,7 @@
     box-shadow:0 6px 20px rgba(0,0,0,.4)}
   #${ROOT_ID} .bo-chip.bo-chip-btn{cursor:pointer}
   #${ROOT_ID} .bo-chip.bo-chip-btn:hover{border-color:#fbd962}
-  /* modal card + backdrop (the "back to BRICK MODE" prompt, the clarify card) */
+  /* modal card + backdrop (the "back to BULWORK MODE" prompt, the clarify card) */
   #${ROOT_ID} .bo-back{position:fixed;inset:0;background:rgba(8,6,2,.55);
     -webkit-backdrop-filter:blur(2px);backdrop-filter:blur(2px);pointer-events:auto}
   #${ROOT_ID} .bo-modal{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);
@@ -183,7 +184,7 @@
         .join("");
       layers.push(
         `<div class="${corner ? "bo-corner" : "bo-modal"}" role="dialog" aria-modal="${corner ? "false" : "true"}">` +
-          `<div class="bo-tag">${escapeHtml(card.tag || "■ BRICK MODE")}</div>` +
+          `<div class="bo-tag">${escapeHtml(card.tag || "■ BULWORK MODE")}</div>` +
           (card.title ? `<div class="bo-h">${escapeHtml(card.title)}</div>` : "") +
           (card.body ? `<p class="bo-reason">${escapeHtml(card.body)}</p>` : "") +
           checkbox +
@@ -233,5 +234,10 @@
     };
   };
 
-  window.BrickOverlay = { show, clear, reducedMotion };
+  window.BulworkOverlay = { show, clear, reducedMotion };
+  // TEMP back-compat alias: voicelogger-cli vendors a separate manual copy of this exact file
+  // (its test-log indicator) that still calls window.BrickOverlay — that repo hasn't been
+  // updated to the rename yet (a later phase covers it). Without this alias its indicator would
+  // silently break the moment this file changes. Remove once voicelogger-cli is updated.
+  window.BrickOverlay = window.BulworkOverlay;
 })();

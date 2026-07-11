@@ -69,7 +69,7 @@
       pill.querySelector(".brick-task").textContent = "(no input found)";
       return;
     }
-    let header = `[BRICK MODE — focus session active]\nMy focus task: ${focusTask}`;
+    let header = `[BULWORK MODE — focus session active]\nMy focus task: ${focusTask}`;
     try {
       const r = await chrome.runtime.sendMessage({ type: "prepend", opts: {} });
       if (r && r.header) header = r.header;

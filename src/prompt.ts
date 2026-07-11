@@ -2,7 +2,7 @@ import { hardenSystemPrompt, wrapUntrusted, detectInjection, emitShieldEvent } f
 import type { AdjudicationInput } from "./types.js";
 
 const BASE_SYSTEM_PROMPT = [
-  "You are BRICK MODE's focus adjudicator. The user has declared a single FOCUS TASK",
+  "You are BULWORK MODE's focus adjudicator. The user has declared a single FOCUS TASK",
   "and is in a timed work session. Decide whether visiting a given URL is consistent",
   "with making progress on that focus task.",
   "",

@@ -13,7 +13,7 @@ against your focus is the whole point.
 
 ## How do I add or remove a Tier-1 or Tier-3 site?
 
-Open the extension options page (chrome://extensions → BRICK MODE → Details → Extension options).
+Open the extension options page (chrome://extensions → BULWORK MODE → Details → Extension options).
 The **Tier 1 — always blocked** and **Tier 3 — always allowed** textareas take one domain per line
 (e.g. `reddit.com`). Press **save tier lists**. Lists persist in the service's `.data/tiers.json`.
 **reset to defaults** reverts both lists to the built-ins. Changes are picked up by the service
@@ -21,9 +21,9 @@ immediately; Tier-1 browser rules refresh on the next session start or work re-e
 
 ## What happens when a page is blocked?
 
-Tier-1 navigations redirect straight to the BRICK block page. Tier-2 pages judged off-task during
+Tier-1 navigations redirect straight to the BULWORK block page. Tier-2 pages judged off-task during
 work are blocked too — but if the work phase started while you were already on the page (e.g. break
-ended), you get the **soft overlay** instead: "Back to BRICK MODE" with **Just 1 more minute** /
+ended), you get the **soft overlay** instead: "Back to BULWORK MODE" with **Just 1 more minute** /
 **Back to work →**. Blocking only happens during the **work** phase; breaks lift everything.
 
 ## Fail-open: what if the service is down?

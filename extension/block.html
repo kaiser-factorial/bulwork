@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>BRICK MODE — blocked</title>
+    <title>BULWORK MODE — blocked</title>
     <style>
       :root {
         --bg: #0a0f0a;
@@ -31,6 +31,10 @@
         gap: 18px;
       }
       .brick { letter-spacing: 0.4em; color: var(--red); font-weight: 700; }
+      /* two-tone BULWORK wordmark: BUL in the existing dim/inactive gold, WORK in the existing
+         session-yellow (both already used for card text in overlay.js) — never mixed-case. */
+      .bw-bul { color: #cda94e; }
+      .bw-work { color: #fbd962; }
       h1 { font-size: 1.6rem; margin: 0; }
       .row { border-top: 1px solid var(--line); padding-top: 12px; }
       .label { color: var(--dim); font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.15em; }
@@ -53,7 +57,7 @@
   </head>
   <body>
     <div class="wrap">
-      <div class="brick">■ BRICK MODE</div>
+      <div class="brick">■ <span class="bw-bul">BUL</span><span class="bw-work">WORK</span> MODE</div>
       <h1>Blocked — stay on task.</h1>
       <div class="row">
         <div class="label">Your focus</div>

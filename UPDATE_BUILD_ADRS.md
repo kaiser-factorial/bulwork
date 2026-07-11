@@ -1,5 +1,7 @@
 # BRICK MODE — Update Build: Architecture & ADRs
 
+> *Historical note: this project was renamed brick → bulwork in July 2026. This document predates the rename and is left as originally written.*
+
 **Status:** Proposed (living draft — grows as user-test notes come in)
 **Date:** 2026-07-09
 **Deciders:** Corina

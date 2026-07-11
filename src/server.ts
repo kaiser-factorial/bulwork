@@ -7,7 +7,7 @@ import { buildPrependHeader, wrapMessage } from "./prepend.js";
 import { classify } from "./tiers.js";
 import { groundingEnabled } from "./grounding.js";
 import { loadSettings, loadTiers, resetTiers, saveSettings, saveTiers } from "./config-store.js";
-import type { BrickSettings } from "./config-store.js";
+import type { BulworkSettings } from "./config-store.js";
 import { activeProviderName, providerHasKey, selectProvider } from "./providers/index.js";
 import {
   clearDecisions,
@@ -38,6 +38,7 @@ import type { SlotBinding } from "./template-store.js";
 import { getPlan } from "./plan-runtime.js";
 import type { ChatTurn } from "./providers/index.js";
 import type { FocusRef, GitPredicate, StopCondition, WorkflowTemplate } from "./types.js";
+import { bulworkEnv } from "./env.js";
 
 /** Light validation of user-posted stop conditions (Epic B): keep only recognizable shapes; the
  *  runtime forces `met:false` and the evaluators fail open on anything broken at runtime. */
@@ -80,12 +81,12 @@ try {
   /* ambient env */
 }
 
-const PORT = Number(process.env.BRICK_PORT ?? "7373");
+const PORT = Number(bulworkEnv("PORT") ?? "7373");
 // The active provider (Epic R) determines the effective default model and which key gates tier-2.
 const PROVIDER = activeProviderName();
-// The seed model: BRICK_MODEL env, else the active provider's default. Persisted settings (R2) layer
+// The seed model: BULWORK_MODEL env, else the active provider's default. Persisted settings (R2) layer
 // on top — a saved model wins, and clearing it reverts to this seed.
-const SEED_MODEL = process.env.BRICK_MODEL ?? selectProvider().defaultModel;
+const SEED_MODEL = bulworkEnv("MODEL") ?? selectProvider().defaultModel;
 const hasApiKey = (): boolean => providerHasKey();
 // Review fix: the most recent adjudicator fail-open, so an outage is observable on /health instead
 // of looking identical to the model genuinely allowing every page.
@@ -131,7 +132,7 @@ function readJson(req: IncomingMessage): Promise<Body> {
 // SECURITY: a localhost service is reachable by any web page the user visits. Two defenses:
 //  1. Only reflect Access-Control-Allow-Origin for the extension / localhost (never "*"), so a
 //     random site can't read GET responses (e.g. exfiltrate the project list).
-//  2. Require an X-Brick-Client header on every request. A cross-origin "simple" request can't set
+//  2. Require an X-Bulwork-Client (or, deprecated, X-Brick-Client) header on every request. A cross-origin "simple" request can't set
 //     custom headers; adding one forces a CORS preflight that only succeeds for allowed origins —
 //     so a malicious page's request never reaches the handler. The extension/CLI set it explicitly.
 function isAllowedOrigin(origin: string): boolean {
@@ -145,11 +146,11 @@ function applyCors(req: IncomingMessage, res: ServerResponse): void {
   if (origin && isAllowedOrigin(origin)) res.setHeader("Access-Control-Allow-Origin", origin);
   res.setHeader("Vary", "Origin");
   res.setHeader("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS");
-  res.setHeader("Access-Control-Allow-Headers", "Content-Type, X-Brick-Client");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type, X-Bulwork-Client, X-Brick-Client");
 }
 
 function authorized(req: IncomingMessage): boolean {
-  return Boolean(req.headers["x-brick-client"]);
+  return Boolean(req.headers["x-bulwork-client"]) || Boolean(req.headers["x-brick-client"]);
 }
 
 // R2 model picker: the tool-call-capable OpenRouter catalog, fetched server-side (the key never
@@ -248,7 +249,7 @@ async function handle(req: IncomingMessage, res: ServerResponse): Promise<void> 
   }
 
   if (!authorized(req)) {
-    return sendJson(res, 403, { error: "missing X-Brick-Client header" });
+    return sendJson(res, 403, { error: "missing X-Bulwork-Client or X-Brick-Client header" });
   }
 
   // Parameterized route: DELETE /templates/:id (the only non-static path).
@@ -286,7 +287,7 @@ async function handle(req: IncomingMessage, res: ServerResponse): Promise<void> 
 
     case "POST /config/settings": {
       const body = await readJson(req);
-      const patch: BrickSettings = {};
+      const patch: BulworkSettings = {};
       // Accept a model override; a blank string clears it (revert to the seed).
       if (typeof body.model === "string") patch.model = body.model;
       if (Array.isArray(body.pageScopeDomains)) patch.pageScopeDomains = body.pageScopeDomains as string[];
@@ -689,6 +690,6 @@ createServer((req, res) => {
   });
 }).listen(PORT, "127.0.0.1", () => {
   process.stdout.write(
-    `brick service on http://127.0.0.1:${PORT}  (provider: ${PROVIDER}, model: ${effectiveModel()}, key: ${hasApiKey() ? "set" : "MISSING — tier-2 stubbed"})\n`,
+    `bulwork service on http://127.0.0.1:${PORT}  (provider: ${PROVIDER}, model: ${effectiveModel()}, key: ${hasApiKey() ? "set" : "MISSING — tier-2 stubbed"})\n`,
   );
 });

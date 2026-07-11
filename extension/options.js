@@ -1,4 +1,4 @@
-// BRICK MODE settings — service status, adjudicator model, and editable tier lists.
+// BULWORK MODE settings — service status, adjudicator model, and editable tier lists.
 const $ = (id) => document.getElementById(id);
 const lines = (id) =>
   $(id)
@@ -143,7 +143,7 @@ function loadTemplateMgr() {
   });
 }
 
-// "Ask about BRICK" (Epic H3) — grounded usage Q&A over the service's /help route.
+// "Ask about BULWORK" (Epic H3) — grounded usage Q&A over the service's /help route.
 const helpHistory = []; // short in-page history: [{role, content}]
 
 function helpAppend(role, text, sources) {
@@ -153,7 +153,7 @@ function helpAppend(role, text, sources) {
   div.style.margin = "0 0 10px";
   const who = document.createElement("div");
   who.className = "muted";
-  who.textContent = role === "user" ? "you" : "brick";
+  who.textContent = role === "user" ? "you" : "bulwork";
   const body = document.createElement("div");
   body.style.whiteSpace = "pre-wrap";
   if (role === "assistant") body.style.color = "#d9e8dd";

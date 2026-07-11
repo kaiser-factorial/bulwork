@@ -11,8 +11,9 @@ import type { ChatTool, ChatTurn } from "./providers/index.js";
 import { loadTiers, loadSettings } from "./config-store.js";
 import { decisionCounts, loadDecisions } from "./decisions-store.js";
 import { getSession } from "./session.js";
+import { bulworkEnv } from "./env.js";
 
-const HELP_DIR = process.env.BRICK_HELP_DIR ?? fileURLToPath(new URL("../help/", import.meta.url));
+const HELP_DIR = bulworkEnv("HELP_DIR") ?? fileURLToPath(new URL("../help/", import.meta.url));
 
 export interface HelpChunk {
   doc: string; // file name, e.g. "gatekeeper.md"
@@ -91,7 +92,7 @@ function stateTools(): ChatTool[] {
     {
       name: "get_config",
       description:
-        "Read BRICK's current configuration: tier lists, provider, model, and focus-tuning settings.",
+        "Read BULWORK MODE's current configuration: tier lists, provider, model, and focus-tuning settings.",
       schema: empty,
       run: async () =>
         JSON.stringify({
@@ -121,7 +122,7 @@ function stateTools(): ChatTool[] {
 }
 
 const HELP_SYSTEM = [
-  "You are BRICK MODE's help assistant. BRICK MODE is a focus-enforcement tool: a local service plus",
+  "You are BULWORK MODE's help assistant. BULWORK MODE is a focus-enforcement tool: a local service plus",
   "a browser extension that blocks or questions off-task pages during timed work sessions.",
   "",
   "Answer the user's usage question using ONLY the documentation excerpts provided below and, when",
@@ -148,7 +149,7 @@ export async function answerHelp(question: string, history?: ChatTurn[]): Promis
     .join("\n\n");
 
   const provider = selectProvider();
-  const model = (await loadSettings()).model?.trim() || process.env.BRICK_MODEL || provider.defaultModel;
+  const model = (await loadSettings()).model?.trim() || bulworkEnv("MODEL") || provider.defaultModel;
   const res = await provider.chat({
     system: HELP_SYSTEM,
     user: `Documentation excerpts:\n\n${excerpts || "(no matching documentation found)"}\n\nQuestion: ${question}`,

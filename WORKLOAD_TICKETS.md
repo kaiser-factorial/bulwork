@@ -1,4 +1,4 @@
-# BRICK MODE — Workload tickets
+# BULWORK MODE — Workload tickets
 
 Build plan for the workload / day-plan layer (design: `WORKLOAD_DESIGN.md`). Sequenced into five
 epics. **Each epic ends with a verification gate — a checklist you run yourself before calling the
@@ -6,7 +6,7 @@ phase done and starting the next.** Tickets inside an epic can be built in order
 hard sign-off boundary.
 
 Conventions used below:
-- **Files** = where the change lands (all paths relative to `brick/`).
+- **Files** = where the change lands (all paths relative to `bulwork/`).
 - **AC** = acceptance criteria (what "the ticket works" means).
 - **Verify** = the concrete check for that ticket.
 - Automated checks reuse the existing harness: `npm run typecheck`, `npm run build`,
@@ -39,7 +39,7 @@ session border (S1), and the grace overlay (F1/F2) all use — so they don't eac
 full-screen rendering and don't collide in `content-guard.js`. Tiny; land it first. Design threads
 through `WORKLOAD_DESIGN.md` §14.2 / §15 / §16.
 
-### BRICK-U1 · Transient-treatment helper
+### BULWORK-U1 · Transient-treatment helper
 - **Files:** `extension/content-guard.js` (extract the existing "1 more minute" vignette into a shared
   helper), optionally `extension/overlay.js` (new shared module)
 - **Scope:** a single function that renders a fixed, `pointer-events:none`, high-z-index full-viewport
@@ -65,29 +65,29 @@ Goal: one key for many models, switch the adjudicator model from the options pag
 Mostly `src/*` (parallel with the extension epics); precedes Epic 0 in the service lane (shared
 `adjudicate.ts`). Design: `WORKLOAD_DESIGN.md` §17.
 
-### BRICK-R1 · Provider seam + OpenRouter impl
+### BULWORK-R1 · Provider seam + OpenRouter impl
 - **Files:** `src/adjudicate.ts` (refactor the model call behind `VerdictProvider`),
   `src/providers/*.ts` (new: `openrouter.ts`, `anthropic.ts`), `package.json` (add `openai`)
 - **Scope:** `OpenRouterProvider` via the `openai` SDK at `https://openrouter.ai/api/v1`
   (`OPENROUTER_API_KEY`), forced `tool_choice:{type:"function",function:{name:"record_verdict"}}`,
   parse `tool_calls[0].function.arguments` (JSON string) defensively. Keep `AnthropicProvider` as a
-  selectable path (`BRICK_PROVIDER`, default `openrouter`). Port the canary check to read
+  selectable path (`BULWORK_PROVIDER`, default `openrouter`). Port the canary check to read
   `message.content ?? ""` (content is often null under forced tool calls).
 - **AC:** adjudication returns a valid structured verdict via OpenRouter; the Anthropic path still
   works when selected; conservative-allow + canary/shield behave exactly as before.
 - **Verify:** `npm run eval` through OpenRouter returns structured verdicts on real cases; flip
-  `BRICK_PROVIDER=anthropic` → still works; `npm run smoke` green (key-free stub path unchanged).
+  `BULWORK_PROVIDER=anthropic` → still works; `npm run smoke` green (key-free stub path unchanged).
 
-### BRICK-R2 · Configurable model (options page)
+### BULWORK-R2 · Configurable model (options page)
 - **Files:** `src/config-store.ts` (model in settings), `src/server.ts` (`/config`,
   `/config/settings`), `extension/options.html/js`
-- **Scope:** move the model id from the `BRICK_MODEL` env into `.data/settings.json`; options-page
+- **Scope:** move the model id from the `BULWORK_MODEL` env into `.data/settings.json`; options-page
   control = free-text OpenRouter id + a few presets; sent per-request; env stays as the default seed.
 - **AC:** changing the model in options makes the next adjudication use it; `GET /config` reflects it.
 - **Verify:** 🖐 set a model in options → `curl /adjudicate` shows `model` = the chosen id; a bad id
   fails open (allow), not a crash.
 
-### BRICK-R3 · Robustness / fail-open on provider output
+### BULWORK-R3 · Robustness / fail-open on provider output
 - **Files:** `src/adjudicate.ts`, `src/providers/*`
 - **Scope:** malformed JSON args, missing tool call, or provider/network error → **fail open** (allow),
   logged; keep the `NaN confidence → 0` + conservative-allow guards.
@@ -95,7 +95,7 @@ Mostly `src/*` (parallel with the extension epics); precedes Epic 0 in the servi
 - **Verify:** inject a malformed response in a unit test → `allow` with a clear reason; provider
   timeout → `allow`.
 
-### BRICK-R4 · Eval across models *(optional)*
+### BULWORK-R4 · Eval across models *(optional)*
 - **Files:** `src/eval.ts` / `scripts/`
 - **Scope:** run the case set against N models, report accuracy + latency per model, so the config
   choice is data-driven.
@@ -105,7 +105,7 @@ Mostly `src/*` (parallel with the extension epics); precedes Epic 0 in the servi
 - [ ] `npm run typecheck` + `npm run build` clean; `npm run smoke` passes.
 - [ ] 🖐 `npm run eval` adjudicates real cases through OpenRouter with structured verdicts.
 - [ ] 🖐 Model switch from the options page takes effect on the next adjudication.
-- [ ] 🖐 `BRICK_PROVIDER=anthropic` still adjudicates (fallback intact).
+- [ ] 🖐 `BULWORK_PROVIDER=anthropic` still adjudicates (fallback intact).
 - [ ] Malformed/absent provider output and provider outages **fail open** to allow (never hard-block).
 - [ ] Canary/shield suppression still fires on a leak under the new response shape.
 
@@ -121,7 +121,7 @@ Design: `WORKLOAD_DESIGN.md` §14.
 (0.2) is the backbone the overlay, lever, per-video, and nudge all write to. Extension-side tickets
 (0.3, 0.5, 0.7, 0.8) also depend on Epic U.
 
-### BRICK-0.1 · `ask` outcome in the adjudicator
+### BULWORK-0.1 · `ask` outcome in the adjudicator
 - **Files:** `src/types.ts`, `src/prompt.ts`, `src/adjudicate.ts`, `src/server.ts`
 - **Scope:** extend `Decision` to `allow | block | ask`; teach the few-shot prompt when to emit `ask`
   (focus too vague to judge, ≠ confidently off-topic); `/adjudicate` passes `ask` through with a flag
@@ -131,7 +131,7 @@ Design: `WORKLOAD_DESIGN.md` §14.
 - **Verify:** `npm run eval` on a few hand-written vague-focus cases returns `ask`; `curl /adjudicate`
   shows the `ask` verdict shape.
 
-### BRICK-0.2 · Learned-decision store + short-circuit
+### BULWORK-0.2 · Learned-decision store + short-circuit
 - **Files:** `src/decisions-store.ts` (new), `src/server.ts`
 - **Scope:** `.data/decisions.json` keyed by `(focusKey, scope, unit)` → `allow|block` + `via`;
   `focusKey = projectId ?? normalize(task)`; `scope` is `domain` (default) or `page` (§14.7).
@@ -146,7 +146,7 @@ Design: `WORKLOAD_DESIGN.md` §14.
   call (key unset → still the learned verdict, not the stub); a Tier-1 domain stays blocked even after
   a learned allow.
 
-### BRICK-0.3 · Clarify-and-learn overlay
+### BULWORK-0.3 · Clarify-and-learn overlay
 - **Files:** `extension/content-guard.js` (via the Epic U helper), `extension/background.js`
 - **Depends on:** Epic U.
 - **Scope:** on `ask`, show the clarify card — **yes, on-topic** / **no, block** / **remember for this
@@ -158,7 +158,7 @@ Design: `WORKLOAD_DESIGN.md` §14.
 - **Verify:** 🖐 vague focus "assignment", visit logitloom → clarify card (not a hard block);
   yes+remember → revisit is silent; dismiss/ignore the card → page stays usable, no block.
 
-### BRICK-0.4 · Source-aware leniency
+### BULWORK-0.4 · Source-aware leniency
 - **Files:** `src/adjudicate.ts` (or `src/server.ts`)
 - **Scope:** modulate strictness by `FocusTask.source` — `explicit` free-text prefers `ask`/lean-allow;
   grounded `next-action` keeps normal strictness.
@@ -166,7 +166,7 @@ Design: `WORKLOAD_DESIGN.md` §14.
   it's a grounded project focus.
 - **Verify:** unit-style comparison over a fixed case across the two sources.
 
-### BRICK-0.5 · Honesty lever (user correction)
+### BULWORK-0.5 · Honesty lever (user correction)
 - **Files:** `extension/popup.html/js` (+ optional in-page pill), `extension/options.html/js`,
   `extension/background.js`, `src/server.ts`
 - **Scope:** a **"mark this page off-task"** action → writes a `block` learned decision
@@ -179,14 +179,14 @@ Design: `WORKLOAD_DESIGN.md` §14.
 - **Verify:** 🖐 on an allowed page hit off-task → soft-blocks and stays blocked; on a blocked page hit
   on-topic → loads and stays allowed; the options readout reflects both; clear resets.
 
-### BRICK-0.6 · Corrections → eval cases *(optional but cheap)*
+### BULWORK-0.6 · Corrections → eval cases *(optional but cheap)*
 - **Files:** `examples/cases.json`, `scripts/smoke.mjs`
 - **Scope:** append clarify answers + corrections as `(task, url, expected)` cases so `npm run eval`
   scores accuracy against your real corrections.
 - **AC:** a correction shows up as a scored eval case; `npm run eval` reports accuracy including it.
 - **Verify:** make one correction, run `npm run eval`, see the new case scored.
 
-### BRICK-0.7 · Per-page scoping for high-variance domains (YouTube)
+### BULWORK-0.7 · Per-page scoping for high-variance domains (YouTube)
 - **Files:** `extension/content-guard.js` (SPA hook), `extension/options.html/js`, `src/server.ts` /
   `src/adjudicate.ts`
 - **Depends on:** 0.2 (scope field).
@@ -200,7 +200,7 @@ Design: `WORKLOAD_DESIGN.md` §14.
 - **Verify:** 🖐 focus "data-science assignment" → a p-values video loads; let autoplay drift to
   something unrelated → it's caught on the video change (no manual reload).
 
-### BRICK-0.8 · Rabbit-hole time nudge
+### BULWORK-0.8 · Rabbit-hole time nudge
 - **Files:** `extension/background.js`, `extension/options.html/js`, (optional `src/server.ts` for
   logging)
 - **Depends on:** Epic U (nudge card).
@@ -235,11 +235,11 @@ Design: `WORKLOAD_DESIGN.md` §14.
 
 ## Epic H — In-app help agent (usage Q&A)
 
-Goal: let users ask brick itself how to use/configure it — a grounded, docs-backed assistant (the
+Goal: let users ask bulwork itself how to use/configure it — a grounded, docs-backed assistant (the
 `claude-code-guide` analog), since the in-browser model is otherwise a headless adjudicator. Depends on
 Epic R (reuses the provider for a chat call). Design: `WORKLOAD_DESIGN.md` §18.
 
-### BRICK-H1 · Help corpus
+### BULWORK-H1 · Help corpus
 - **Files:** `help/*.md` (new), distilled from `README.md`, `EXTENSION.md`, `WORKLOAD_DESIGN.md`
 - **Scope:** a curated how-to/FAQ covering every config surface (tiers, swap modes, advance mode,
   provider/model, focus-time, gatekeeper, sessions/plans, templates), chunked for light keyword
@@ -248,7 +248,7 @@ Epic R (reuses the provider for a chat call). Design: `WORKLOAD_DESIGN.md` §18.
   exist in the app.
 - **Verify:** spot-check ~10 Q→chunk mappings; every documented setting appears.
 
-### BRICK-H2 · `/help` route + grounded chat call
+### BULWORK-H2 · `/help` route + grounded chat call
 - **Files:** `src/help.ts` (new), `src/server.ts`
 - **Depends on:** R1 (provider seam).
 - **Scope:** `POST /help { question, history? } → { answer, sources }`; retrieve relevant corpus
@@ -259,15 +259,15 @@ Epic R (reuses the provider for a chat call). Design: `WORKLOAD_DESIGN.md` §18.
 - **Verify:** `curl /help` with 5 real questions → grounded answers with sources; ask something
   unsupported → graceful "don't know".
 
-### BRICK-H3 · Extension help surface
-- **Files:** `extension/popup.html/js` and/or `extension/options.html/js` (an "ask about BRICK" panel)
+### BULWORK-H3 · Extension help surface
+- **Files:** `extension/popup.html/js` and/or `extension/options.html/js` (an "ask about BULWORK" panel)
 - **Depends on:** H2.
 - **Scope:** a small chat box; sends to `/help`, renders answer + sources; keeps short history.
 - **AC:** ask → answer renders with its doc sources; works with a session active or not.
 - **Verify:** 🖐 ask "how do I add a Tier-1 site?" and "what does swap=first mean?" → correct answers in
   the panel.
 
-### BRICK-H4 · Situated read-only state tools *(fast-follow)*
+### BULWORK-H4 · Situated read-only state tools *(fast-follow)*
 - **Files:** `src/help.ts`, `src/server.ts`
 - **Scope:** give the help agent `get_config` / `get_plan` / `get_learned_decisions` with
   `tool_choice:"auto"` (read-only, never mutates) so it can answer "what's blocked right now?", "what
@@ -276,9 +276,9 @@ Epic R (reuses the provider for a chat call). Design: `WORKLOAD_DESIGN.md` §18.
 - **Verify:** 🖐 during a session, ask "what am I focused on?" and "which sites are blocked?" → answered
   from live state.
 
-### BRICK-H5 · Shared corpus into Ledger's focus agent *(Ledger repo — separate)*
+### BULWORK-H5 · Shared corpus into Ledger's focus agent *(Ledger repo — separate)*
 - **Scope:** Ledger's focus agent loads the same `help/` corpus (+ ledger-specific usage docs) or calls
-  brick's `/help`, so "how do I use brick?" answered in Ledger matches the extension.
+  bulwork's `/help`, so "how do I use bulwork?" answered in Ledger matches the extension.
 - **AC/Verify:** 🖐 the same question answered in Ledger and in the extension gives consistent guidance.
 
 ### ✅ Phase H verification gate
@@ -297,10 +297,10 @@ Goal: an unmissable, momentary signal on every state change — a colored screen
 green break) that fades after ~10s, plus an optional sound cue, both toggleable. Independent; ships in
 the early wave with Epic 0. Design: `WORKLOAD_DESIGN.md` §15.
 
-### BRICK-S1 · Phase-change border overlay
+### BULWORK-S1 · Phase-change border overlay
 - **Files:** `extension/content-guard.js`, `extension/background.js`
 - **Depends on:** Epic U (uses the transient-treatment helper, border-only variant).
-- **Scope:** on the existing `brick:phase` broadcast, render the border treatment (via the U helper)
+- **Scope:** on the existing `bulwork:phase` broadcast, render the border treatment (via the U helper)
   that fades in then out over a configurable window (default 10s). Red = work, green = break (reuse
   `WORK_COLOR` / `BREAK_COLOR`). Honour `prefers-reduced-motion` — steady fade, no strobe.
 - **AC:** a work↔break flip shows the correct color on the active tab and auto-clears after the window;
@@ -308,7 +308,7 @@ the early wave with Epic 0. Design: `WORKLOAD_DESIGN.md` §15.
 - **Verify:** 🖐 set work/break to 1 min, watch a flip — red border on work, green on break, gone after
   ~10s; clicking through the page still works.
 
-### BRICK-S2 · Sound cues (offscreen audio)
+### BULWORK-S2 · Sound cues (offscreen audio)
 - **Files:** `extension/background.js`, `extension/offscreen.html/js` (new),
   `extension/sounds/*` (assets), `extension/manifest.json` (`offscreen` permission +
   `web_accessible_resources`)
@@ -320,7 +320,7 @@ the early wave with Epic 0. Design: `WORKLOAD_DESIGN.md` §15.
 - **Verify:** 🖐 with sound enabled and several tabs open, hear focus-tone on work / twinkle on break —
   exactly one play per flip.
 
-### BRICK-S3 · Options-page toggles
+### BULWORK-S3 · Options-page toggles
 - **Files:** `extension/options.html`, `extension/options.js`
 - **Scope:** controls for sound on/off, border on/off, and border duration, persisted to
   `chrome.storage.local` (no service round-trip); content script + worker read them. Include a
@@ -347,7 +347,7 @@ Goal: taking "one more minute" shouldn't cost you work minutes — but repeatedl
 harder. Refines the existing Tier-2 grace overlay. Independent early-wave; extension-side depends on
 Epic U. Design: `WORKLOAD_DESIGN.md` §16.
 
-### BRICK-F1 · Pause the work clock during grace
+### BULWORK-F1 · Pause the work clock during grace
 - **Files:** `extension/background.js` (phase alarm / `phaseEndsAt`), `extension/content-guard.js`
   (grace enter/exit signals)
 - **Scope:** while the grace overlay is active during a work phase, **pause** the phase countdown; on
@@ -360,7 +360,7 @@ Epic U. Design: `WORKLOAD_DESIGN.md` §16.
   during grace and resumes, so you still get the full 3 min of actual work; exceed the cap → hard
   block.
 
-### BRICK-F2 · Escalating grace opacity
+### BULWORK-F2 · Escalating grace opacity
 - **Files:** `extension/content-guard.js` (via the Epic U helper), `extension/background.js` (grace
   count in phase state)
 - **Depends on:** Epic U.
@@ -387,14 +387,14 @@ Epic U. Design: `WORKLOAD_DESIGN.md` §16.
 Goal: an ordered, editable queue of blocks with budgets, steps, and **manual** advance. No watchers,
 no notifications yet. The active block reuses the existing single-focus session.
 
-### BRICK-A1 · Types for plan / block / step
+### BULWORK-A1 · Types for plan / block / step
 - **Files:** `src/types.ts`
 - **Scope:** add `WorkloadPlan`, `WorkBlock`, `Step`, `StopCondition` (union, structural only this
   phase), `RepeatSpec`, and the `swapMode` field. No behaviour.
 - **AC:** types compile; `FocusTask` reused as the block's focus (no duplication).
 - **Verify:** `npm run typecheck` passes.
 
-### BRICK-A2 · PlanStore interface + LocalPlanStore
+### BULWORK-A2 · PlanStore interface + LocalPlanStore
 - **Files:** `src/plan-store.ts` (new)
 - **Scope:** `PlanStore` interface (`load`/`save`/`advance`); `LocalPlanStore` backed by
   `.data/plan.json`. Mirror the Ledger-native schema exactly (so Epic D is a swap, not a rewrite).
@@ -403,7 +403,7 @@ no notifications yet. The active block reuses the existing single-focus session.
 - **Verify:** a tiny node script writes then loads a 3-block plan and prints it; `.data/plan.json`
   exists and is valid JSON.
 
-### BRICK-A3 · PlanRuntime (queue + budgets + manual advance + steps)
+### BULWORK-A3 · PlanRuntime (queue + budgets + manual advance + steps)
 - **Files:** `src/plan-runtime.ts` (new), `src/session.ts` (wrap, don't replace)
 - **Scope:** hold the active plan; the active block delegates to the existing `FocusSession`; macro
   budget clock per block (advisory only this phase); `advance(blockId, "done"|"skipped")` moves to
@@ -413,17 +413,17 @@ no notifications yet. The active block reuses the existing single-focus session.
 - **Verify:** unit-style script drives start → toggle steps → advance ×N → end; asserts queue
   position and `actualMinutes` recorded.
 
-### BRICK-A4 · Service routes for plans
+### BULWORK-A4 · Service routes for plans
 - **Files:** `src/server.ts`
 - **Scope:** `GET /plan`; `POST /plan/start`, `/plan/block/advance`, `/plan/block/step`,
-  `/plan/block/complete`, `/plan/reorder`. Reuse the `X-Brick-Client` + origin guard. `focusFor()`
+  `/plan/block/complete`, `/plan/reorder`. Reuse the `X-Bulwork-Client` + origin guard. `focusFor()`
   returns the **active block's** focus during a plan.
 - **AC:** every route returns the updated plan + a monotonic `stateVersion`; a per-call `task` can't
   override the active block's focus (existing safety property holds).
-- **Verify:** `curl` (with `-H "X-Brick-Client: cli"`) start → advance → get; `stateVersion`
+- **Verify:** `curl` (with `-H "X-Bulwork-Client: cli"`) start → advance → get; `stateVersion`
   increments; 403 without the header.
 
-### BRICK-A5 · Extension: queue popup + badge
+### BULWORK-A5 · Extension: queue popup + badge
 - **Files:** `extension/background.js`, `extension/popup.html`, `extension/popup.js`
 - **Scope:** background reads `/plan`; badge shows minutes-left + `2/3` queue position; popup renders
   active block (budget timer, focus, steps checklist) + queue list + `advance now` / `end plan`.
@@ -432,7 +432,7 @@ no notifications yet. The active block reuses the existing single-focus session.
 - **Verify:** 🖐 load unpacked at `chrome://extensions`, start a 3-block plan, advance through it,
   watch badge + popup update.
 
-### BRICK-A6 · Smoke coverage for plans
+### BULWORK-A6 · Smoke coverage for plans
 - **Files:** `scripts/smoke.mjs`
 - **Scope:** extend the existing smoke run with plan start/advance/step/end assertions (no API key
   needed — Tier logic untouched).
@@ -456,14 +456,14 @@ no notifications yet. The active block reuses the existing single-focus session.
 Goal: save a parameterized plan skeleton and re-run it by binding slots to projects. Can start as soon
 as Epic A lands.
 
-### BRICK-T1 · Template types + store
+### BULWORK-T1 · Template types + store
 - **Files:** `src/types.ts`, `src/template-store.ts` (new)
 - **Scope:** `WorkflowTemplate`, `Slot`, `TemplateBlock` (with `focusRef` + optional
   `onActivate.bunch`); `TemplateStore` + `LocalTemplateStore` (`.data/templates.json`).
 - **AC:** round-trips; same interface shape as `PlanStore`.
 - **Verify:** script saves + lists two templates; file is valid JSON.
 
-### BRICK-T2 · Template expansion + launch
+### BULWORK-T2 · Template expansion + launch
 - **Files:** `src/plan-runtime.ts`, `src/server.ts`
 - **Scope:** `POST /plan/from-template { templateId, bindings }` — expand `pattern` and bind slots →
   concrete `WorkloadPlan`. Zero-slot templates launch as-is.
@@ -472,14 +472,14 @@ as Epic A lands.
 - **Verify:** `curl` from-template with two project ids → returned plan alternates correctly and stops
   at the day boundary.
 
-### BRICK-T3 · Template CRUD + "save current as template"
+### BULWORK-T3 · Template CRUD + "save current as template"
 - **Files:** `src/server.ts`, `src/template-store.ts`
 - **Scope:** `GET/POST /templates`, `DELETE /templates/:id`; a "save current plan as template" that
   lifts concrete projects into slots (offer keep-bound vs. parameterize).
 - **AC:** saving an active plan produces a re-launchable template; deleting removes it.
 - **Verify:** save current plan → appears in `GET /templates` → relaunch it.
 
-### BRICK-T4 · Template UI (popup picker + options management)
+### BULWORK-T4 · Template UI (popup picker + options management)
 - **Files:** `extension/popup.html/js`, `extension/options.html/js`
 - **Scope:** popup plan-picker gains a **templates** row; picking a slotted template shows a
   slot-binding step; options page lists/edits/deletes templates.
@@ -488,7 +488,7 @@ as Epic A lands.
 - **Verify:** 🖐 pick "alternating deep work", bind two projects, confirm the plan that starts is
   A,B,A,B.
 
-### BRICK-T5 · Smoke coverage for templates
+### BULWORK-T5 · Smoke coverage for templates
 - **Files:** `scripts/smoke.mjs`
 - **AC/Verify:** `npm run smoke` covers save → from-template → expansion assertion; passes.
 
@@ -506,18 +506,18 @@ as Epic A lands.
 Goal: auto-detect stop conditions, combine time + condition into a swap decision, and honour the
 auto-vs-manual advance setting. Depends on Epic A.
 
-### BRICK-B1 · Watcher subsystem + evaluators
+### BULWORK-B1 · Watcher subsystem + evaluators
 - **Files:** `src/watchers.ts` (new), `src/plan-runtime.ts`
-- **Scope:** `Evaluator` contract (`arm`/`poll`); one interval loop (`BRICK_WATCH_INTERVAL_MS`, default
+- **Scope:** `Evaluator` contract (`arm`/`poll`); one interval loop (`BULWORK_WATCH_INTERVAL_MS`, default
   30s) over the **active block's** conditions. Evaluators: `ledger` (diff `nextAction`), `git`
   (`head-advanced` / `merge-commit` / `message-match`), `command` (behind
-  `BRICK_ALLOW_COMMAND_CONDITIONS`). Fail-open, monotonic, baseline at block start.
+  `BULWORK_ALLOW_COMMAND_CONDITIONS`). Fail-open, monotonic, baseline at block start.
 - **AC:** a met condition sets `met:true` and never reverts; any evaluator error → `false` (no false
   complete).
 - **Verify:** with a scratch git repo, `head-advanced` flips only after a real commit/push; a broken
   `repoPath` never flips.
 
-### BRICK-B2 · Swap policy combinator
+### BULWORK-B2 · Swap policy combinator
 - **Files:** `src/plan-runtime.ts`
 - **Scope:** implement `condition | time | first | both` over `conditionMet` and `timeUp`; derive the
   default (`first` when both budget+condition exist, else the one present).
@@ -525,24 +525,24 @@ auto-vs-manual advance setting. Depends on Epic A.
   condition for swapping; `both` needs the min-time floor.
 - **Verify:** script simulates (met at t1, budget at t2) for each mode and asserts the swap instant.
 
-### BRICK-B3 · Advance-mode setting + condition-driven swap handling
+### BULWORK-B3 · Advance-mode setting + condition-driven swap handling
 - **Files:** `src/config-store.ts` (add `loadSettings`/`saveSettings`), `src/server.ts`
   (`POST /config/settings`, include settings in `GET /config`), `src/plan-runtime.ts`
-- **Scope:** `BrickSettings { advanceMode, undoWindowSec }` in `.data/settings.json`; per-block
+- **Scope:** `BulworkSettings { advanceMode, undoWindowSec }` in `.data/settings.json`; per-block
   `advanceMode?` override; `onConditionMet` branch: **auto** → advance + arm undo
   (`POST /plan/undo-advance`); **manual** → mark block `ready`, no move.
 - **AC:** auto advances then reverts within the window; manual leaves the queue put and flags `ready`;
   a time-driven swap uses the nudge path, not undo/tap.
 - **Verify:** `curl` toggles settings; drive a met condition under each mode and confirm behaviour.
 
-### BRICK-B4 · Options page advance-mode control
+### BULWORK-B4 · Options page advance-mode control
 - **Files:** `extension/options.html/js`
 - **Scope:** two radios (auto+undo / manual) + undo-seconds field (disabled when manual), saved via
   `/config/settings`.
 - **AC:** changing the radio persists and a new plan picks it up.
 - **Verify:** 🖐 flip to manual, save, reload options → still manual.
 
-### BRICK-B5 · Smoke coverage for watchers / swap / settings
+### BULWORK-B5 · Smoke coverage for watchers / swap / settings
 - **Files:** `scripts/smoke.mjs`
 - **Scope:** temp git repo fixture; assert swap modes + settings round-trip. Keep it key-free.
 - **AC/Verify:** `npm run smoke` green.
@@ -565,34 +565,34 @@ auto-vs-manual advance setting. Depends on Epic A.
 Goal: budget escalation and swap events reach you via popup/badge, in-page overlay, and OS
 notification. Depends on Epic B (swap events) and Epic A (badge).
 
-### BRICK-C1 · Escalation clock + stateVersion
+### BULWORK-C1 · Escalation clock + stateVersion
 - **Files:** `src/plan-runtime.ts`, `src/server.ts`
 - **Scope:** escalation levels (T-minus / T-0 / grace) from block budget; expose current level + a
   monotonic `stateVersion` on `GET /plan`.
 - **AC:** levels advance at the configured thresholds; `stateVersion` bumps on any state change.
 - **Verify:** poll `/plan` over a short block; level transitions at the right times.
 
-### BRICK-C2 · NotificationDispatcher + tick diffing + dedup
+### BULWORK-C2 · NotificationDispatcher + tick diffing + dedup
 - **Files:** `extension/background.js`
 - **Scope:** on each `TICK_ALARM` (shortened near a boundary), fetch `/plan`, diff `stateVersion`,
   emit changed events; dedup by `(event, blockId, level)`.
 - **AC:** each escalation level notifies once, not every tick.
 - **Verify:** 🖐 service-worker console shows one dispatch per level.
 
-### BRICK-C3 · OS notifications
+### BULWORK-C3 · OS notifications
 - **Files:** `extension/manifest.json` (add `notifications`), `extension/background.js`
 - **Scope:** `chrome.notifications` for T-0 and auto-complete/switch events.
 - **AC:** OS notification fires with browser in the background.
 - **Verify:** 🖐 background the browser during a work block → OS toast at T-0.
 
-### BRICK-C4 · In-page switch overlay
+### BULWORK-C4 · In-page switch overlay
 - **Files:** `extension/content-guard.js` (or a small new content script), `background.js`
-- **Scope:** `brick:switch` message → bottom-right card ("start Block B?" · Advance / Stay), reusing
-  the existing `brick:phase`/`brick:catch` channel.
+- **Scope:** `bulwork:switch` message → bottom-right card ("start Block B?" · Advance / Stay), reusing
+  the existing `bulwork:phase`/`bulwork:catch` channel.
 - **AC:** overlay appears on the active tab at swap time and its buttons hit the service.
 - **Verify:** 🖐 overlay shows on a live page; Advance moves the queue.
 
-### BRICK-C5 · Popup/badge escalation visuals
+### BULWORK-C5 · Popup/badge escalation visuals
 - **Files:** `extension/popup.html/js`, `background.js`
 - **Scope:** badge colour-shift by level; popup escalation banner; `undo` affordance (auto) and
   `advance now` glow (manual, `· ready`).
@@ -614,13 +614,13 @@ notification. Depends on Epic B (swap events) and Epic A (badge).
 Goal: promote the plan (and templates) from local JSON to first-class Ledger objects. The only epic
 that edits the mature Ledger app; do it last, in isolation.
 
-### BRICK-D1 · Ledger schema + CLI verbs *(Ledger repo)*
+### BULWORK-D1 · Ledger schema + CLI verbs *(Ledger repo)*
 - **Scope:** `plans` (and `templates`) schema; `ledger plan show --json`, `ledger plan advance`,
   `ledger plan step`, plus template read.
-- **AC:** verbs read/write the Firestore objects; `--json` shape matches the brick schema 1:1.
-- **Verify:** 🖐 `ledger plan show --json` returns a plan brick can parse.
+- **AC:** verbs read/write the Firestore objects; `--json` shape matches the bulwork schema 1:1.
+- **Verify:** 🖐 `ledger plan show --json` returns a plan bulwork can parse.
 
-### BRICK-D2 · LedgerPlanStore / LedgerTemplateStore + migration
+### BULWORK-D2 · LedgerPlanStore / LedgerTemplateStore + migration
 - **Files:** `src/plan-store.ts`, `src/template-store.ts`, `src/ledger.ts`, `src/server.ts`
 - **Scope:** CLI-backed store impls (shell out like `status --json`); a one-shot migration
   `.data/plan.json` + `.data/templates.json` → Ledger; a config switch to select the backend.
@@ -629,8 +629,8 @@ that edits the mature Ledger app; do it last, in isolation.
 - **Verify:** run the full A/T gates again with the Ledger backend selected.
 
 ### ✅ Phase D verification gate
-- [ ] 🖐 A plan created in brick appears as a Ledger object (`ledger plan show --json`).
-- [ ] 🖐 Advancing a block in brick is reflected in Ledger, and vice-versa.
+- [ ] 🖐 A plan created in bulwork appears as a Ledger object (`ledger plan show --json`).
+- [ ] 🖐 Advancing a block in bulwork is reflected in Ledger, and vice-versa.
 - [ ] 🖐 Local → Ledger migration moves existing `.data` plans/templates without loss.
 - [ ] Re-running the Phase A and Phase T gates against the Ledger backend passes unchanged.
 

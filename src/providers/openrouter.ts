@@ -16,7 +16,7 @@ function getClient(): OpenAI {
       apiKey: process.env.OPENROUTER_API_KEY,
       baseURL: "https://openrouter.ai/api/v1",
       // Optional attribution headers OpenRouter uses for its dashboard; harmless if unrecognised.
-      defaultHeaders: { "X-Title": "BRICK MODE" },
+      defaultHeaders: { "X-Title": "BULWORK MODE" },
     });
   }
   return client;

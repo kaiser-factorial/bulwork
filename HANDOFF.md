@@ -1,4 +1,4 @@
-# BRICK MODE — handoff
+# BULWORK MODE — handoff
 
 **What this is:** the focus-enforcement pillar of the Ledger project-OS. Spec + roadmap in
 `../ledger/docs/BRICK_MODE_PLAN.md`; chronological build log + divergences in `SESSION_LOG.md`.
@@ -13,7 +13,7 @@ smoke 108/108). 🖐 Browser gates are pending on PR #2 (checklists in the PR co
 
 **Epic D setup (start the next session with this):** the Ledger repos live at
 `~/Projects/ledger_root/{ledger,ledger-cli,ledger-mcp}` — NOT the `../ledger` sibling paths written
-below. Launch the session from a directory spanning brick + ledger_root (or `--add-dir`), set
+below. Launch the session from a directory spanning bulwork + ledger_root (or `--add-dir`), set
 `LEDGER_BIN` to the built CLI, and have Firestore creds ready. D1 adds `ledger plan
 show/advance/step --json` verbs in the Ledger repo; D2 drops `LedgerPlanStore`/`LedgerTemplateStore`
 behind the existing `PlanStore`/`TemplateStore` seams (`usePlanStore()` is the hook) + a one-shot
@@ -31,10 +31,10 @@ The two docs that drive everything:
   each with acceptance criteria and a **per-phase verification gate** (checkboxes to run before
   sign-off).
 
-**Build order:** `U → (R → {0, H}, S, F) → A → (T, B) → C → D`. Begin with **BRICK-U1** (tiny
+**Build order:** `U → (R → {0, H}, S, F) → A → (T, B) → C → D`. Begin with **BULWORK-U1** (tiny
 shared-overlay prelude); the early wave (Epics R/0/H/S/F) makes the tool better *today*, before any
 plan architecture. **Epic R** (OpenRouter provider + options-page model picker) comes first in the
-service lane because it and Epic 0 both edit `adjudicate.ts`; **Epic H** (in-app help agent — ask brick
+service lane because it and Epic 0 both edit `adjudicate.ts`; **Epic H** (in-app help agent — ask bulwork
 how to use itself) also builds on R's provider. Epic D is the only one that touches the mature Ledger
 app — last.
 
@@ -45,7 +45,7 @@ concurrent lanes.
 
 ```
 WAVE 0 (prelude, tiny — unblocks every extension overlay)
-  └─ BRICK-U1  transient-treatment helper           [extension/content-guard.js (+overlay.js)]
+  └─ BULWORK-U1  transient-treatment helper           [extension/content-guard.js (+overlay.js)]
 
 WAVE 1 — two lanes in parallel (no cross-lane file overlap):
 
@@ -80,13 +80,13 @@ WAVE 1 — two lanes in parallel (no cross-lane file overlap):
 
 ## Status
 
-- **Phase 1 — DONE.** Adjudicator (`brick`) + AI-chat prepend (`brick-prepend`). Verified: build,
+- **Phase 1 — DONE.** Adjudicator (`bulwork`) + AI-chat prepend (`bulwork-prepend`). Verified: build,
   typecheck, live Ledger wiring, dry-run. (Eval now runnable — key is in.)
 - **Phase 2 — DONE (headless).** Local service (`src/server.ts`) + MV3 browser extension
   (`extension/`) + tiers + Pomodoro sessions + JSONL session log + the prepend focus pill.
   Verified by `npm run smoke` (7/7) and manual curl. Now running live in Chrome with the key.
 - **Phase-2 fast-follow — wired, inert.** Memory-Hub grounding (`src/grounding.ts`), gated on
-  `BRICK_MEM_BIN`.
+  `BULWORK_MEM_BIN`.
 - **Design/planning — DONE (2026-07-08).** Full design + phased tickets for the next build wave
   (Epics U, R, 0, H, S, F, A, T, B, C, D) written in `WORKLOAD_DESIGN.md` + `WORKLOAD_TICKETS.md`.
 - **Workload early wave — COMPLETE (2026-07-08, branch `worktree-workload-early-wave`, PR #1).**
@@ -119,7 +119,7 @@ WAVE 1 — two lanes in parallel (no cross-lane file overlap):
 ## Resume / verify
 
 ```bash
-cd brick && npm install
+cd bulwork && npm install
 npm run smoke             # builds + self-tests the whole service — hermetic (no key, no ledger)
 npm run serve             # then load extension/ unpacked in Chrome (see EXTENSION.md)
 npm run eval              # needs a provider key — validates adjudication accuracy
@@ -139,7 +139,7 @@ npm run eval:corrections  # scores the adjudicator against YOUR recorded clarify
    `../ledger-cli/docs/FOCUS_COMMAND_PLAN.md` (`ledger focus` primitive).
 
 Note: a subagent security review hardened the service since first build — the local service now
-requires an `X-Brick-Client` header and locks CORS to the extension/localhost origins (CSRF-to-
+requires an `X-Bulwork-Client` header and locks CORS to the extension/localhost origins (CSRF-to-
 localhost fix). See SESSION_LOG "Agent-assisted hardening".
 
 ## File map
@@ -156,7 +156,7 @@ src/
   decisions-store.ts learned allow/block per (focusKey, scope, unit) + precedence + eval export
   prepend.ts         soft-nudge AI-chat header
   tiers.ts           tier1/tier3 defaults + classify()
-  config-store.ts    tier lists + BrickSettings (model, focus tuning) — .data/*.json
+  config-store.ts    tier lists + BulworkSettings (model, focus tuning) — .data/*.json
   session.ts         Pomodoro/focus session state + JSONL log (+ Firestore stub) + refocus
   plan-store.ts      PlanStore seam + LocalPlanStore + pure advancePlan (Epic A)
   plan-runtime.ts    queue runtime: block↔session anchoring, budgets, steps, stateVersion (Epic A)

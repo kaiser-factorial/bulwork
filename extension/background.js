@@ -1,9 +1,9 @@
-// BRICK MODE — background service worker.
-// Owns session state, talks to the local brick service, manages Tier-1 blocking rules
+// BULWORK MODE — background service worker.
+// Owns session state, talks to the local bulwork service, manages Tier-1 blocking rules
 // and the Pomodoro phase alarms. Content scripts and the popup message this worker.
 
 const SERVICE = "http://127.0.0.1:7373";
-const DNR_BASE = 1000; // dynamic-rule id offset for brick Tier-1 rules
+const DNR_BASE = 1000; // dynamic-rule id offset for bulwork Tier-1 rules
 const DNR_MAX = 200; // reserved id range [DNR_BASE, DNR_BASE+DNR_MAX)
 const PHASE_ALARM = "brick-phase";
 const TICK_ALARM = "brick-tick"; // refreshes the badge, rabbit-hole accrual, and plan dispatch
@@ -17,8 +17,8 @@ const BREAK_COLOR = "#2e8b57"; // green badge during break
 async function api(path, opts = {}) {
   const res = await fetch(SERVICE + path, {
     ...opts,
-    // X-Brick-Client is the service's auth gate — a web page can't set it cross-origin.
-    headers: { "Content-Type": "application/json", "X-Brick-Client": "extension", ...(opts.headers || {}) },
+    // X-Bulwork-Client is the service's auth gate — a web page can't set it cross-origin.
+    headers: { "Content-Type": "application/json", "X-Bulwork-Client": "extension", ...(opts.headers || {}) },
   });
   if (!res.ok) throw new Error(`service ${path} -> ${res.status}`);
   return res.json();
@@ -42,7 +42,7 @@ async function updateBadge(st, plan) {
   const s = st ?? (await getState());
   if (!s.session) {
     await chrome.action.setBadgeText({ text: "" });
-    await chrome.action.setTitle({ title: "BRICK MODE — no active session" });
+    await chrome.action.setTitle({ title: "BULWORK MODE — no active session" });
     return;
   }
   // During a grace pause (F1) the countdown is frozen: remaining time is measured against the
@@ -66,7 +66,7 @@ async function updateBadge(st, plan) {
     await chrome.action.setBadgeText({ text: s.graceStartedAt ? `${rem}⏸` : String(rem) });
     await chrome.action.setBadgeBackgroundColor({ color });
     await chrome.action.setTitle({
-      title: `BRICK — ${idx}/${p.blocks.length} · ${focusTask} · ${rem}m left${s.graceStartedAt ? " (paused — grace)" : ""}`,
+      title: `BULWORK — ${idx}/${p.blocks.length} · ${focusTask} · ${rem}m left${s.graceStartedAt ? " (paused — grace)" : ""}`,
     });
     return;
   }
@@ -76,14 +76,14 @@ async function updateBadge(st, plan) {
     const idx = p.blocks.findIndex((b) => b.id === p.activeBlockId) + 1;
     await chrome.action.setBadgeText({ text: String(minsLeft) });
     await chrome.action.setBadgeBackgroundColor({ color: BREAK_COLOR });
-    await chrome.action.setTitle({ title: `BRICK — break · ${minsLeft} min left · next: ${idx}/${p.blocks.length}` });
+    await chrome.action.setTitle({ title: `BULWORK — break · ${minsLeft} min left · next: ${idx}/${p.blocks.length}` });
     return;
   }
 
   await chrome.action.setBadgeText({ text: s.graceStartedAt ? `${minsLeft}⏸` : String(minsLeft) });
   await chrome.action.setBadgeBackgroundColor({ color: isWork ? WORK_COLOR : BREAK_COLOR });
   await chrome.action.setTitle({
-    title: `BRICK — ${isWork ? "work" : "break"}${s.graceStartedAt ? " (paused — grace)" : ""} · ${minsLeft} min left · ${s.session.focus.task}`,
+    title: `BULWORK — ${isWork ? "work" : "break"}${s.graceStartedAt ? " (paused — grace)" : ""} · ${minsLeft} min left · ${s.session.focus.task}`,
   });
 }
 
@@ -107,13 +107,13 @@ async function setTier1Rules(enable) {
         condition: { urlFilter: `||${domain}`, resourceTypes: ["main_frame"] },
       }));
     } catch (e) {
-      console.warn("brick: could not load tiers; leaving Tier-1 rules cleared", e);
+      console.warn("bulwork: could not load tiers; leaving Tier-1 rules cleared", e);
     }
   }
   try {
     await chrome.declarativeNetRequest.updateDynamicRules({ removeRuleIds, addRules });
   } catch (e) {
-    console.warn("brick: updateDynamicRules failed", e);
+    console.warn("bulwork: updateDynamicRules failed", e);
   }
 }
 
@@ -327,7 +327,7 @@ async function dispatchNotifications(plan) {
   // action is offered only when actually available.
   if (!planChanged && blockChanged && fire(`${planId}:${activeId}:switched`)) {
     const undoNote = p.undo ? " Undo is available for a few seconds." : "";
-    osNotify(`brick-switch-${activeId}`, "BRICK — switched blocks", `Now: ${label}.${undoNote}`);
+    osNotify(`brick-switch-${activeId}`, "BULWORK — switched blocks", `Now: ${label}.${undoNote}`);
     await pageNotify({
       title: "Switched blocks",
       body: `Now: ${label}`,
@@ -342,18 +342,18 @@ async function dispatchNotifications(plan) {
     // Quiet: badge tint + popup banner only — no OS toast, no in-page card.
     await updateBadge(undefined, p);
   } else if (level === "t-0" && fire(`${planId}:${activeId}:t-0`)) {
-    osNotify(`brick-t0-${activeId}`, "BRICK — time's up", `Time's up on: ${label}. Next: ${next}`);
+    osNotify(`brick-t0-${activeId}`, "BULWORK — time's up", `Time's up on: ${label}. Next: ${next}`);
     await pageNotify({ title: "Time's up", body: `${label} — next: ${next}`, actions: ["advance", "stay"] });
     await updateBadge(undefined, p);
   } else if (level === "grace" && fire(`${planId}:${activeId}:grace`)) {
-    osNotify(`brick-grace-${activeId}`, "BRICK — still on the old block", `Over budget on: ${label}. Advance to: ${next}?`);
+    osNotify(`brick-grace-${activeId}`, "BULWORK — still on the old block", `Over budget on: ${label}. Advance to: ${next}?`);
     await pageNotify({ title: "Over budget", body: `Still on ${label} — advance to ${next}?`, actions: ["advance", "stay"] });
     await updateBadge(undefined, p);
   }
 
   // Manual-mode "ready to advance" (a met condition is waiting for your tap).
   if (active?.ready && fire(`${planId}:${activeId}:ready`)) {
-    osNotify(`brick-ready-${activeId}`, "BRICK — ready to advance", `${label} is ready. Tap "advance now" when you are.`);
+    osNotify(`brick-ready-${activeId}`, "BULWORK — ready to advance", `${label} is ready. Tap "advance now" when you are.`);
   }
 
   await chrome.storage.local.set({ brickDispatch: st });
@@ -458,7 +458,7 @@ async function guard(url, title, unit) {
     };
   } catch {
     // Fail open — never block real work because the service is unreachable.
-    return { allow: true, tier: "error", reason: "brick service unreachable (fail-open)" };
+    return { allow: true, tier: "error", reason: "bulwork service unreachable (fail-open)" };
   }
 }
 
@@ -789,7 +789,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         case "graceEnd": // Epic F1 — resume: extend phaseEndsAt by the paused duration
           sendResponse(await graceEnd());
           break;
-        case "help": // "Ask about BRICK" panel (Epic H3) → grounded /help Q&A
+        case "help": // "Ask about BULWORK" panel (Epic H3) → grounded /help Q&A
           sendResponse(
             await api("/help", {
               method: "POST",

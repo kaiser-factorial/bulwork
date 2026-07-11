@@ -1,4 +1,4 @@
-# BRICK MODE — Workload / Day-Plan design
+# BULWORK MODE — Workload / Day-Plan design
 
 **Status:** design proposal (Phase 3 candidate). Extends the single-focus session model into a
 **fluid, ordered queue of project blocks** with per-block time budgets and/or auto-detected stop
@@ -13,12 +13,12 @@ conditions.
 
 ## 1. The idea in one paragraph
 
-Today brick answers *"is this tab consistent with my one focus task?"* The focus task **is** a Ledger
+Today bulwork answers *"is this tab consistent with my one focus task?"* The focus task **is** a Ledger
 project's Next Action (`ledger.ts` — the keystone). This design adds the layer above: a **Workload**
 (a day plan) is an ordered list of **Blocks**; each Block *is* a focus session bound to a Ledger
 project, plus a **budget** ("~2h on this") and/or a **stop-condition** ("done when I push to main").
 The currently-active Block is exactly the `FocusSession` that already exists — so the adjudicator,
-tiers, and Pomodoro all keep working unchanged, anchored to whichever block is active. brick's new job
+tiers, and Pomodoro all keep working unchanged, anchored to whichever block is active. bulwork's new job
 is to run the *queue*: watch budgets and completion signals, and nudge you from Block A → B → C.
 
 Two axes that are deliberately kept separate:
@@ -61,7 +61,7 @@ recurring shape ("alternate X and Y in 2h blocks") can be saved and re-run as a 
   (see §7 sequencing).
 
 **Constraints (from the repo today)**
-- Ledger integration is **read-only** — brick shells out to `ledger status --json` (`ledger.ts`).
+- Ledger integration is **read-only** — bulwork shells out to `ledger status --json` (`ledger.ts`).
   There is no write path and **no "active project" state** in Ledger.
 - Session state is a single in-memory `current` singleton (`session.ts`) plus a JSONL append log.
 - The extension is a thin enforcement surface; the local service (`:7373`) is the brain
@@ -71,7 +71,7 @@ recurring shape ("alternate X and Y in 2h blocks") can be saved and re-run as a 
 
 ## 3. Data model
 
-New types (brick `src/types.ts`), designed to be **Ledger-native** in shape so they can move into
+New types (bulwork `src/types.ts`), designed to be **Ledger-native** in shape so they can move into
 Ledger later with no restructuring:
 
 ```ts
@@ -138,7 +138,7 @@ lab job again". `maxPerDay` prevents an accidental infinite loop.
 
 ```
                           ┌────────────────────────────────────────────────┐
-                          │              brick service (:7373)               │
+                          │              bulwork service (:7373)             │
                           │                    "the brain"                   │
    Ledger CLI  ──read──►  │  PlanStore ──┐                                   │
   (projects,  ◄─write──   │             ├─► PlanRuntime ──► SignalWatchers   │
@@ -180,7 +180,7 @@ Pomodoro becomes **opt-out per plan** (some blocks, like a 20-min lab check, don
 
 A `watchers.ts` module. On block activation, the runtime instantiates an **evaluator** per
 stop-condition and runs a single interval loop (default 30s, configurable
-`BRICK_WATCH_INTERVAL_MS`). Each tick evaluates only the **active block's** conditions:
+`BULWORK_WATCH_INTERVAL_MS`). Each tick evaluates only the **active block's** conditions:
 
 | Condition | Evaluator | How it detects "met" | Cost |
 |---|---|---|---|
@@ -215,7 +215,7 @@ Budget expiry does **not** flip your focus. It escalates:
 3. **Grace overrun (e.g. +M min):** the nudge re-fires, more insistent; the popup surfaces a one-tap
    **"Advance now"**.
 4. **Past grace:** the adjudication anchor **softly** shifts toward the next block — pages tied to the
-   old block start getting the existing *soft* "1 more minute" overlay (the `brick:catch` channel),
+   old block start getting the existing *soft* "1 more minute" overlay (the `bulwork:catch` channel),
    never a hard block. This is pressure, not a wall — you can still choose to stay.
 
 Escalation thresholds live in plan/config so they're tunable. The philosophy matches the codebase's
@@ -233,12 +233,12 @@ what happens the moment a **stop-condition** is satisfied.
 
 ## 7. Where the plan lives — Ledger, sequenced honestly
 
-You chose the plan's home to be a **Ledger object**. The wrinkle: brick can only *read* Ledger today
+You chose the plan's home to be a **Ledger object**. The wrinkle: bulwork can only *read* Ledger today
 (`ledger status --json`), and the repo deliberately avoids un-verifiable edits to the mature Ledger
 app. So the target and the path differ:
 
 **Target (destination):** a first-class Ledger `WorkloadPlan` (a `plans` collection in Firestore),
-with CLI verbs brick shells out to exactly like `status`:
+with CLI verbs bulwork shells out to exactly like `status`:
 
 ```
 ledger plan show   --json          # read today's plan + blocks
@@ -267,7 +267,7 @@ destination while respecting "don't do headless-unverifiable mature-app edits no
 
 ## 8. Service API additions (`server.ts`)
 
-All guarded by the existing `X-Brick-Client` header + origin allow-list.
+All guarded by the existing `X-Bulwork-Client` header + origin allow-list.
 
 | Route | Purpose |
 |---|---|
@@ -285,10 +285,10 @@ focus — a per-call `task` still can't hijack adjudication, preserving the curr
 
 ### 8.1 Advance mode (user setting)
 
-How brick reacts the instant a **stop-condition** is met is a toggle, not a hardcoded choice:
+How bulwork reacts the instant a **stop-condition** is met is a toggle, not a hardcoded choice:
 
 ```ts
-interface BrickSettings {
+interface BulworkSettings {
   advanceMode: "auto" | "manual";   // default "auto"
   undoWindowSec: number;            // default 30 — only used by "auto"
 }
@@ -336,8 +336,8 @@ changed:
 
 - **Popup / badge:** badge already shows minutes-left; extend the title/popup to show *block name +
   queue position* ("2/3 · New Project · 12m left") and colour-shift as escalation rises.
-- **In-page overlay:** reuse the `brick:phase` / `brick:catch` content-script channel with a new
-  `brick:switch` message → a bottom-right card: *"Time's up on A — start B?"* with **Advance / Stay**.
+- **In-page overlay:** reuse the `bulwork:phase` / `bulwork:catch` content-script channel with a new
+  `bulwork:switch` message → a bottom-right card: *"Time's up on A — start B?"* with **Advance / Stay**.
 - **OS notification:** `chrome.notifications` (add the `notifications` permission to
   `manifest.json`) for the T‑0 and auto-complete events, so you get it even with the browser in the
   background — important for the "I'm heads-down and lose track of time" case.
@@ -360,7 +360,7 @@ Dedup by `(event, blockId, escalationLevel)` so a nudge fires once per level, no
   big win. Cost: no true parallel focuses (fine for this use case; you context-switch, you don't
   split).
 - **Ledger write path is net-new.** The whole design runs on `LocalPlanStore` with zero Ledger
-  changes; the Ledger object is a clean, later swap. If Ledger never grows the verbs, brick still
+  changes; the Ledger object is a clean, later swap. If Ledger never grows the verbs, bulwork still
   fully works local-first.
 - **Command conditions run arbitrary shells.** Powerful (`npm test` as a stop-condition) but a foot-gun
   → opt-in, off by default, and clearly a "you configured this" surface.
@@ -374,7 +374,7 @@ Dedup by `(event, blockId, escalationLevel)` so a nudge fires once per level, no
   *(Fully testable headless — mirrors how the current service is smoke-tested.)*
 - **Phase B — signal watchers.** `git` + `ledger` evaluators, watcher loop, auto-advance + undo.
 - **Phase C — escalating notifications.** T-minus/T-0/grace logic + `chrome.notifications` + the
-  `brick:switch` overlay across all three surfaces.
+  `bulwork:switch` overlay across all three surfaces.
 - **Phase D — Ledger-native store.** `ledger plan …` verbs in the Ledger repo + `LedgerPlanStore`;
   migrate `.data/plan.json` → Ledger. (The only phase that touches the mature app.)
 
@@ -486,7 +486,7 @@ connection, so it returns a high-confidence `block` and the existing conservativ
 rescues *low*-confidence blocks) never fires.
 
 **Guiding principle:** a **false block costs more than a false allow.** Blocking real work breaks
-trust in the tool; a moment of leaked distraction doesn't. So when genuinely unsure, brick should
+trust in the tool; a moment of leaked distraction doesn't. So when genuinely unsure, bulwork should
 **ask or lean allow — never hard-block.** This is the same "conservative-allow / soft-nudge" ethos the
 codebase already follows, extended to the ambiguous case.
 
@@ -502,18 +502,18 @@ and it's small.
 
 ### 14.2 Clarify-and-learn overlay
 
-Reuse the existing soft-overlay surface (`brick:catch`) rather than new UI. On `ask`, a bottom-right
+Reuse the existing soft-overlay surface (`bulwork:catch`) rather than new UI. On `ask`, a bottom-right
 card: *"Not sure if logitloom.com is part of 'assignment'. On-topic?"* → **yes, on-topic** /
 **no, block** / a **remember for this focus** checkbox, plus a **make focus more specific** shortcut
 that re-sets the focus to a tighter string. One tap turns a wall into a teaching moment.
 
 **Ignored `ask` → fail open.** If you don't answer the card, the page **stays loaded** (never a
-silent block) and brick doesn't re-nag it this session — straight from the false-block-costs-more
+silent block) and bulwork doesn't re-nag it this session — straight from the false-block-costs-more
 principle. An `ask` is a question, not a hold.
 
 **Symmetric pre-teach.** The same store can be written *proactively*: a **"mark on-topic"** action in
 the popup (the mirror of the honesty lever, §14.6) lets you whitelist a site for the current focus
-before brick ever asks. Both write the same learned store — one leaning allow, one leaning block.
+before bulwork ever asks. Both write the same learned store — one leaning allow, one leaning block.
 
 ### 14.3 Learned-decision store (the memory)
 
@@ -563,12 +563,12 @@ focuses, keep normal strictness. A targeted heuristic, not a blunt global loosen
 ### 14.5 Specificity nudge (optional, upstream)
 
 At focus-set time, if a free-typed task is short/vague, a gentle one-liner: *"'assignment' is broad —
-add a keyword so BRICK can tell what's on-topic?"* Non-blocking; prevents the problem at the source.
+add a keyword so BULWORK can tell what's on-topic?"* Non-blocking; prevents the problem at the source.
 
 ### 14.6 The honesty lever (user-initiated correction)
 
 The mirror of 14.2. A popup action / in-page pill — **"mark this page off-task"** — lets you tell
-brick *"we should not have been allowed to do this under the current focus."* It writes a `block`
+bulwork *"we should not have been allowed to do this under the current focus."* It writes a `block`
 entry to the learned store (`via: "correction"`), soft-blocks the page now, and won't allow it again
 under this focus. Opt-in and self-control-dependent by nature, but a valuable way to keep yourself
 honest when something slips through.
@@ -584,7 +584,7 @@ A whole-domain verdict is wrong for YouTube: one video on p-values is on-topic f
 assignment; the next auto-play might not be. Two changes make per-video judgement work:
 
 - **The page title is the signal.** A bare URL / video id is opaque; the *title* ("p-values
-  explained") is what lets the model judge topic. brick already accepts a `title` on `/adjudicate` —
+  explained") is what lets the model judge topic. bulwork already accepts a `title` on `/adjudicate` —
   ensure the content script sends the **current** video title.
 - **SPA-aware re-adjudication.** YouTube is a single-page app: navigating video→video updates the URL
   (`?v=<id>`) without a full load, so the content-guard's normal navigation hook never fires. Patch
@@ -627,7 +627,7 @@ configurable.
 - **Border:** the content script renders a fixed, full-viewport overlay — `pointer-events:none`, high
   z-index, `box-shadow: inset 0 0 0 6px <color>` — that fades in then out over the persist window. It
   uses the shared **transient-treatment primitive** (Epic U) that also backs the clarify card (§14.2)
-  and the grace overlay (§16), and hangs off the **existing `brick:phase` broadcast** (`background.js`
+  and the grace overlay (§16), and hangs off the **existing `bulwork:phase` broadcast** (`background.js`
   already messages every tab on a phase flip), so no new signal is needed. Honour
   `prefers-reduced-motion` (gentle fade, **no strobe**).
 - **Sound:** the reliable MV3 path is a `chrome.offscreen` document driven by the background worker —
@@ -714,7 +714,7 @@ interface VerdictProvider {
   `choices[0].message.tool_calls[0].function.arguments` → `JSON.parse` defensively (malformed → fail
   open, mirroring the existing `NaN confidence → 0` guard).
 - **`AnthropicProvider`** — the current native path, **kept as a config option** (one less hop for
-  Claude models, and it already works). Selected by `BRICK_PROVIDER` (`openrouter` default) + key
+  Claude models, and it already works). Selected by `BULWORK_PROVIDER` (`openrouter` default) + key
   presence.
 
 `text` carries any assistant non-tool text so the **canary/shield check still runs** — note that under
@@ -724,9 +724,9 @@ verdict, unchanged.
 
 ### 17.2 Configurable model
 
-The model id moves from the `BRICK_MODEL` env into **settings** (`.data/settings.json` + `/config`),
+The model id moves from the `BULWORK_MODEL` env into **settings** (`.data/settings.json` + `/config`),
 editable on the options page — a free-text OpenRouter id (`anthropic/claude-haiku-4.5`,
-`openai/gpt-5-mini`, …) with a few presets. Sent per-request; `BRICK_MODEL` stays as the default seed.
+`openai/gpt-5-mini`, …) with a few presets. Sent per-request; `BULWORK_MODEL` stays as the default seed.
 Because the model is now a knob, use the existing **`npm run eval`** harness to compare models on your
 real cases before committing — it becomes your model chooser.
 
@@ -734,13 +734,13 @@ real cases before committing — it becomes your model chooser.
 
 - **Fee.** ~5.5% on credit *purchases* with a **$0.80 floor** (so a small $5 top-up is effectively
   ~16%; it normalizes toward 5.5% at ~$15+ loads); token inference passes through at provider rates,
-  no per-token markup. Negligible at brick's low call volume.
+  no per-token markup. Negligible at bulwork's low call volume.
 - **Extra hop.** One more network hop and dependency; the adjudicator targets <500ms so latency
-  matters a little, and an OpenRouter outage means no adjudication — but brick **fails open** (a
+  matters a little, and an OpenRouter outage means no adjudication — but bulwork **fails open** (a
   down/erroring adjudicator degrades to *allow*, never a hard block), so an outage is graceful, in line
   with the false-block-costs-more principle.
 - **Privacy.** Prompts/completions are **not logged by default**, but requests transit a third party;
-  enabling the model-training toggle, or routing to a provider that logs, changes that. brick already
+  enabling the model-training toggle, or routing to a provider that logs, changes that. bulwork already
   sends only origin+path (no query strings) + focus + title — low-sensitivity — but **keep the
   training toggle off** and prefer non-logging providers.
 - **Per-model tool reliability.** Forced `tool_choice` is supported, but weaker/free models are
@@ -760,8 +760,8 @@ Anthropic-direct provider retained as a fallback.
 
 **Today the model in the browser is a headless adjudicator** — you don't converse with it; it takes a
 URL + focus and returns a verdict. The only conversational focus agent lives in Ledger. So there's no
-way to ask brick itself *"how do I add a Tier-1 site?"* or *"what does `swap = first` mean?"* This adds
-a small **grounded help assistant** — the brick analog of Claude Code's `claude-code-guide` — that
+way to ask bulwork itself *"how do I add a Tier-1 site?"* or *"what does `swap = first` mean?"* This adds
+a small **grounded help assistant** — the bulwork analog of Claude Code's `claude-code-guide` — that
 answers *how to use the app* from the app's own docs.
 
 ### 18.1 Grounded, not free-form
@@ -775,7 +775,7 @@ chunks as context.
 
 ### 18.2 Surface & provider
 
-A **"ask about BRICK"** affordance (a `?` in the popup / a panel on the options page) opens a small
+A **"ask about BULWORK"** affordance (a `?` in the popup / a panel on the options page) opens a small
 chat box. It calls the **same provider/model seam from Epic R** — a normal chat completion (no forced
 tool) with a help system prompt + retrieved corpus. New service route:
 `POST /help { question, history? } → { answer, sources }`. Distinct from `/adjudicate` (different
@@ -783,7 +783,7 @@ prompt, conversational, cites which doc section it used).
 
 ### 18.3 Optional — situated answers (read-only state tools)
 
-A step past a static manual: give the help agent **read-only** access to brick's own state so it can
+A step past a static manual: give the help agent **read-only** access to bulwork's own state so it can
 answer *"what am I focused on right now?"*, *"which sites are blocked?"*, *"why was X blocked?"* — via
 a few tools (`get_config`, `get_plan`, `get_learned_decisions`) with `tool_choice:"auto"`. **Read-only,
 never mutates.** This is what turns it from a manual into an assistant. Ship it as a fast-follow;
@@ -792,9 +792,9 @@ docs-Q&A is the v1.
 ### 18.4 Shared corpus with Ledger
 
 You want this in Ledger too. Make the help corpus the **shared source of truth** (the `help/` doc set)
-that both the brick extension surface *and* **Ledger's focus agent** load — so "how do I use brick?"
+that both the bulwork extension surface *and* **Ledger's focus agent** load — so "how do I use bulwork?"
 answered in Ledger matches the extension, and Ledger adds its own usage docs for ledger-specific
-questions. The Ledger side is a separate-repo change (like Epic D); brick ships the corpus + its own
+questions. The Ledger side is a separate-repo change (like Epic D); bulwork ships the corpus + its own
 surface and exposes the `/help` route for Ledger to reuse.
 
 ### 18.5 Privacy & honesty
@@ -859,7 +859,7 @@ complete); once `met`, stay met (a flapping signal can't un-complete a block).
 
 - **poll:** run `cmd` in `cwd`; met when exit code `=== expectExit`. Enables "done when tests pass."
 - **safety:** runs an arbitrary shell → **off by default**, gated behind an explicit
-  `BRICK_ALLOW_COMMAND_CONDITIONS` flag, and surfaced in the UI as a user-configured action.
+  `BULWORK_ALLOW_COMMAND_CONDITIONS` flag, and surfaced in the UI as a user-configured action.
 
 ### `manual`
 
@@ -885,7 +885,7 @@ auto-signal advances the queue with a 30s **undo window**.
 The popup keeps its terminal aesthetic (`popup.html`), extended from single-focus to plan-aware. Top
 to bottom:
 
-- **Header** `■ BRICK MODE` + a plan strip: `plan · today` / `block 2 / 3`.
+- **Header** `■ BULWORK MODE` + a plan strip: `plan · today` / `block 2 / 3`.
 - **Escalation banner** (amber, conditional): appears at T-minus and on overrun —
   *"budget ends in 5 min · next: grant outline"*.
 - **Active block card:** the block-budget countdown (primary timer), the focus line, the live

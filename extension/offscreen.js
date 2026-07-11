@@ -1,4 +1,4 @@
-// BRICK MODE — offscreen audio (Epic S2). Synthesizes the two session cues with WebAudio instead of
+// BULWORK MODE — offscreen audio (Epic S2). Synthesizes the two session cues with WebAudio instead of
 // bundled clips (no binary assets, tunable in code): a low "focus" tone entering work, a light
 // twinkle entering break. Only this single offscreen document ever plays sound — the phase broadcast
 // reaches every tab, but the worker routes audio here exactly once per transition.

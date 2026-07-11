@@ -2,6 +2,7 @@ import { mkdir, readFile, unlink, writeFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { join } from "node:path";
 import type { WorkBlock, WorkloadPlan } from "./types.js";
+import { bulworkEnv } from "./env.js";
 
 // The plan store (Epic A2). `PlanStore` is the seam Epic D swaps a Ledger-backed implementation
 // into; `LocalPlanStore` persists the identical Ledger-native shape to `.data/plan.json`.
@@ -15,7 +16,7 @@ export interface PlanStore {
 }
 
 const DATA_DIR =
-  process.env.BRICK_DATA_DIR ?? fileURLToPath(new URL("../.data/", import.meta.url));
+  bulworkEnv("DATA_DIR") ?? fileURLToPath(new URL("../.data/", import.meta.url));
 const PLAN_PATH = join(DATA_DIR, "plan.json");
 
 function isPlan(v: unknown): v is WorkloadPlan {

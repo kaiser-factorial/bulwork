@@ -4,6 +4,7 @@ import { SYSTEM_PROMPT, SYSTEM_CANARY, buildUserPrompt } from "./prompt.js";
 import { groundFocus } from "./grounding.js";
 import { resolveModelForProvider, selectProvider } from "./providers/index.js";
 import type { RawVerdict, VerdictTool } from "./providers/index.js";
+import { bulworkEnv } from "./env.js";
 
 onShieldEvent((ev) => {
   process.stderr.write(
@@ -11,7 +12,7 @@ onShieldEvent((ev) => {
   );
 });
 
-const MIN_BLOCK_CONFIDENCE = Number(process.env.BRICK_MIN_BLOCK_CONFIDENCE ?? "0.6");
+const MIN_BLOCK_CONFIDENCE = Number(bulworkEnv("MIN_BLOCK_CONFIDENCE") ?? "0.6");
 
 // Forced tool use is the verdict channel: it guarantees a structured {decision, reason, confidence}
 // without parsing free text. Provider-neutral schema (Anthropic input_schema / OpenAI parameters).
@@ -44,9 +45,9 @@ export async function adjudicate(input: AdjudicationInput): Promise<Adjudication
   // against a cross-provider id, which would 404 every call and silently fail open forever.
   const model = resolveModelForProvider(
     provider,
-    input.model ?? process.env.BRICK_MODEL ?? provider.defaultModel,
+    input.model ?? bulworkEnv("MODEL") ?? provider.defaultModel,
   );
-  // Fast-follow: enrich with project context from the Memory Hub (no-op unless BRICK_MEM_BIN set).
+  // Fast-follow: enrich with project context from the Memory Hub (no-op unless BULWORK_MEM_BIN (or, deprecated, BRICK_MEM_BIN) set).
   const grounding = input.grounding ?? (await groundFocus(input.focus));
 
   // R3 / fail-open ethos: any provider or network error degrades to allow, never a hard block.
@@ -65,7 +66,7 @@ export async function adjudicate(input: AdjudicationInput): Promise<Adjudication
     modelUsed = res.modelUsed;
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    process.stderr.write(`[brick:provider_error] url=${input.url} ${msg.slice(0, 200)}\n`);
+    process.stderr.write(`[bulwork:provider_error] url=${input.url} ${msg.slice(0, 200)}\n`);
     return {
       decision: "allow",
       reason: "Adjudicator error — failing open (allow).",

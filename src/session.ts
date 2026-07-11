@@ -2,9 +2,10 @@ import { appendFile, mkdir } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { join } from "node:path";
 import type { FocusTask } from "./types.js";
+import { bulworkEnv } from "./env.js";
 
 const DATA_DIR =
-  process.env.BRICK_DATA_DIR ?? fileURLToPath(new URL("../.data/", import.meta.url));
+  bulworkEnv("DATA_DIR") ?? fileURLToPath(new URL("../.data/", import.meta.url));
 const LOG_PATH = join(DATA_DIR, "sessions.jsonl");
 
 export type Phase = "work" | "break" | "ended";
@@ -33,7 +34,7 @@ async function logEvent(type: string, data: Record<string, unknown>): Promise<vo
     await appendFile(LOG_PATH, line, "utf8");
   } catch (err) {
     // Logging must never break a session.
-    process.stderr.write(`brick session log write failed: ${(err as Error).message}\n`);
+    process.stderr.write(`bulwork session log write failed: ${(err as Error).message}\n`);
   }
   // PLACEHOLDER (Phase 3+): write a Firestore session-index doc. Needs service-account creds.
   await syncToFirestore({ type, ...data });
@@ -50,7 +51,7 @@ export async function startSession(opts: {
   breakMinutes?: number;
 }): Promise<FocusSession> {
   current = {
-    id: `brick_${Date.now().toString(36)}`,
+    id: `bulwork_${Date.now().toString(36)}`,
     focus: opts.focus,
     startedAt: new Date().toISOString(),
     workMinutes: opts.workMinutes ?? 25,

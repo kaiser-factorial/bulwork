@@ -1,6 +1,7 @@
 import type { VerdictProvider } from "./provider.js";
 import { AnthropicProvider } from "./anthropic.js";
 import { OpenRouterProvider } from "./openrouter.js";
+import { bulworkEnv } from "../env.js";
 
 export type {
   ChatRequest,
@@ -14,11 +15,11 @@ export type {
   VerdictTool,
 } from "./provider.js";
 
-/** Which provider is active. `BRICK_PROVIDER` wins if set; otherwise the default is `openrouter`,
+/** Which provider is active. `BULWORK_PROVIDER` wins if set (falling back to the deprecated `BRICK_PROVIDER`); otherwise the default is `openrouter`,
  *  but we gracefully fall back to `anthropic` when only the Anthropic key is present — so an
  *  existing Anthropic-only install keeps adjudicating instead of silently failing open. */
 export function activeProviderName(): "openrouter" | "anthropic" {
-  const explicit = process.env.BRICK_PROVIDER?.trim().toLowerCase();
+  const explicit = bulworkEnv("PROVIDER")?.trim().toLowerCase();
   if (explicit === "anthropic") return "anthropic";
   if (explicit === "openrouter") return "openrouter";
   const hasOpenRouter = Boolean(process.env.OPENROUTER_API_KEY);
@@ -47,7 +48,7 @@ export function resolveModelForProvider(provider: VerdictProvider, model: string
   const mismatch = provider.name === "openrouter" ? !namespaced : namespaced;
   if (!mismatch) return model;
   process.stderr.write(
-    `[brick:model_mismatch] "${model}" is not a valid ${provider.name} model id — using the provider default "${provider.defaultModel}". Fix BRICK_MODEL / the options-page model.\n`,
+    `[bulwork:model_mismatch] "${model}" is not a valid ${provider.name} model id — using the provider default "${provider.defaultModel}". Fix BULWORK_MODEL / the options-page model.\n`,
   );
   return provider.defaultModel;
 }

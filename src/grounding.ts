@@ -1,15 +1,16 @@
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import type { FocusTask } from "./types.js";
+import { bulworkEnv } from "./env.js";
 
 const execFileAsync = promisify(execFile);
 
 // Ground adjudication in the project's own memory via the Unified Memory Hub's `mem` CLI,
 // so "on-topic" is judged against what the project actually is — not just the one-line task string.
-// Inert unless BRICK_MEM_BIN is set, e.g.:
-//   BRICK_MEM_BIN="node /path/to/MEMORY/bin/mem.js"   (or just "mem" if linked globally)
+// Inert unless BULWORK_MEM_BIN is set (deprecated BRICK_MEM_BIN still works), e.g.:
+//   BULWORK_MEM_BIN="node /path/to/MEMORY/bin/mem.js"   (or just "mem" if linked globally)
 // Requires the Hub configured (Gemini embedding key). Always fails open — never blocks adjudication.
-const MEM_BIN = process.env.BRICK_MEM_BIN;
+const MEM_BIN = bulworkEnv("MEM_BIN");
 
 export function groundingEnabled(): boolean {
   return Boolean(MEM_BIN);

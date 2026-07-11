@@ -1,4 +1,4 @@
-// BRICK MODE popup — focus picker (no session) / live timer (active session).
+// BULWORK MODE popup — focus picker (no session) / live timer (active session).
 const $ = (id) => document.getElementById(id);
 const send = (msg) => chrome.runtime.sendMessage(msg);
 
@@ -286,7 +286,7 @@ async function loadProjects() {
       sel.appendChild(o);
     }
   } catch {
-    $("warn").textContent = "brick service not reachable on :7373 — run `npm run serve`.";
+    $("warn").textContent = "bulwork service not reachable on :7373 — run `npm run serve`.";
   }
 }
 

@@ -21,10 +21,10 @@ const C = {
   yellow: "\x1b[33m",
 };
 
-const HELP = `brick — focus-task-aware allow/block adjudicator (BRICK MODE Phase 1)
+const HELP = `bulwork — focus-task-aware allow/block adjudicator (BULWORK MODE Phase 1)
 
 Usage:
-  brick <url> [options]
+  bulwork <url> [options]
 
 Options:
   --task "<text>"     Focus task for free-typed / untracked work
@@ -36,12 +36,12 @@ Options:
   -h, --help          Show this help
 
 You must choose a focus (--task / --project / --last) — Ledger has no "active project"
-state, so with none of them brick lists your projects and asks you to pick.
+state, so with none of them bulwork lists your projects and asks you to pick.
 
 Examples:
-  brick https://github.com/kaiser-factorial/ledger --task "Fix the OAuth redirect bug"
-  brick https://news.ycombinator.com --last
-  brick https://twitter.com/home --project <id> --dry-run
+  bulwork https://github.com/kaiser-factorial/ledger --task "Fix the OAuth redirect bug"
+  bulwork https://news.ycombinator.com --last
+  bulwork https://twitter.com/home --project <id> --dry-run
 `;
 
 async function main(): Promise<void> {
@@ -125,6 +125,6 @@ function printPretty(r: AdjudicationResult): void {
 
 main().catch((err: unknown) => {
   const msg = err instanceof Error ? err.message : String(err);
-  process.stderr.write(`${C.red}brick: ${msg}${C.reset}\n`);
+  process.stderr.write(`${C.red}bulwork: ${msg}${C.reset}\n`);
   process.exitCode = 1;
 });

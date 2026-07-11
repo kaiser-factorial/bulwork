@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "BRICK MODE",
+  "name": "BULWORK MODE",
   "version": "0.1.0",
-  "description": "AI-adjudicated focus enforcement, anchored to your Ledger Next Action. MVP — talks to the local brick service on 127.0.0.1:7373.",
+  "description": "AI-adjudicated focus enforcement, anchored to your Ledger Next Action. MVP — talks to the local bulwork service on 127.0.0.1:7373.",
   "icons": {
     "16": "icons/icon16.png",
     "32": "icons/icon32.png",
@@ -14,7 +14,7 @@
   "background": { "service_worker": "background.js" },
   "action": {
     "default_popup": "popup.html",
-    "default_title": "BRICK MODE",
+    "default_title": "BULWORK MODE",
     "default_icon": {
       "16": "icons/icon16.png",
       "32": "icons/icon32.png",

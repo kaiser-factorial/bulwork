@@ -2,6 +2,7 @@ import { exec, execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { fetchProjects } from "./ledger.js";
 import type { StopCondition, WorkBlock } from "./types.js";
+import { bulworkEnv } from "./env.js";
 
 const execFileAsync = promisify(execFile);
 const execAsync = promisify(exec);
@@ -131,7 +132,7 @@ class CommandEvaluator implements Evaluator {
   async poll(): Promise<boolean> {
     if (this.met) return true;
     // Runs an arbitrary shell — a foot-gun by design, so it is OFF unless explicitly enabled.
-    if (!process.env.BRICK_ALLOW_COMMAND_CONDITIONS) return false;
+    if (!bulworkEnv("ALLOW_COMMAND_CONDITIONS")) return false;
     const expect = this.cond.expectExit ?? 0;
     try {
       await execAsync(this.cond.cmd, {

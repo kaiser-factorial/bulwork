@@ -29,7 +29,7 @@
   };
   const pageUnit = () => (isPageScoped() ? videoUnit() : null);
 
-  // ---------- soft overlay (rendered via the shared BrickOverlay primitive, Epic U1) ----------
+  // ---------- soft overlay (rendered via the shared BulworkOverlay primitive, Epic U1) ----------
   const WORK_COLOR = "#c0392b"; // red grace wash (matches background.js WORK_COLOR)
   const BREAK_COLOR = "#2e8b57"; // green break border (matches background.js BREAK_COLOR)
 
@@ -55,18 +55,18 @@
     stopTick();
     endGrace();
     graceHandle = null;
-    window.BrickOverlay?.clear();
+    window.BulworkOverlay?.clear();
   };
 
   const showModal = (reason) => {
     stopTick();
     endGrace(); // the re-prompt marks the end of a grace stint — the clock resumes while you decide
-    if (!window.BrickOverlay) return; // helper not injected → fail open (no overlay)
-    window.BrickOverlay.show({
+    if (!window.BulworkOverlay) return; // helper not injected → fail open (no overlay)
+    window.BulworkOverlay.show({
       card: {
         backdrop: true,
-        tag: "■ BRICK MODE",
-        title: "Back to BRICK MODE 🧱",
+        tag: "■ BULWORK MODE",
+        title: "Back to BULWORK MODE 🧱",
         body: reason || "This page is off-task for your focus right now.",
         buttons: [
           { label: "Just 1 more minute", kind: "stay", onClick: startGrace },
@@ -88,7 +88,7 @@
 
   const startGrace = async () => {
     stopTick();
-    if (!window.BrickOverlay) return;
+    if (!window.BulworkOverlay) return;
     // F1: ask the background to pause the work clock. Past the per-block grace cap, grace is no
     // longer granted — the escalation has maxed out and the page hard-blocks.
     let res = { ok: true, graceCount: 1 };
@@ -105,7 +105,7 @@
     let left = 60;
     // Grace vignette: red wash + inset border/glow + slow breathing, with a live countdown chip.
     // The chip doubles as the always-reachable "back to work" control (clickable at every level).
-    graceHandle = window.BrickOverlay.show({
+    graceHandle = window.BulworkOverlay.show({
       color: WORK_COLOR,
       fill: graceFill(res.graceCount || 1),
       border: 4,
@@ -168,7 +168,7 @@
 
   const makeSpecific = async () => {
     const next = window.prompt(
-      "Refine your focus so BRICK can tell what's on-topic:",
+      "Refine your focus so bulwork can tell what's on-topic:",
       "",
     );
     if (!next || !next.trim()) return;
@@ -183,15 +183,15 @@
   };
 
   const showClarify = (reason) => {
-    if (!window.BrickOverlay) return; // helper missing → fail open (page stays loaded)
+    if (!window.BulworkOverlay) return; // helper missing → fail open (page stays loaded)
     if (clarifiedHref === location.href) return; // already answered/dismissed here → no re-nag
     clarifiedHref = location.href;
     stopTick();
     const host = location.hostname.replace(/^www\./, "");
-    window.BrickOverlay.show({
+    window.BulworkOverlay.show({
       card: {
         corner: true,
-        tag: "■ BRICK MODE",
+        tag: "■ BULWORK MODE",
         title: "Is this on-topic?",
         body: reason || `Not sure if ${host} fits your current focus.`,
         checkbox: { label: "remember for this focus", checked: true },
@@ -237,11 +237,11 @@
 
   // Rabbit-hole time nudge (Epic 0.8): a check-in card after long foreground time on a flagged domain.
   const showRabbitHole = (domain, minutes) => {
-    if (!window.BrickOverlay) return;
-    window.BrickOverlay.show({
+    if (!window.BulworkOverlay) return;
+    window.BulworkOverlay.show({
       card: {
         corner: true,
-        tag: "■ BRICK MODE",
+        tag: "■ BULWORK MODE",
         title: `${minutes} min on ${domain} this session`,
         body: "Still productive here, or time to wrap up?",
         buttons: [
@@ -267,7 +267,7 @@
   // Rendered through the U1 helper (pointer-events:none — never intercepts clicks; reduced-motion is
   // a steady fade, no strobe). Purely client-side: settings live in chrome.storage.local.
   const showPhaseBorder = async (phase) => {
-    if (!window.BrickOverlay) return;
+    if (!window.BulworkOverlay) return;
     let fb = { border: true, borderSec: 10 };
     try {
       const { brickFeedback } = await chrome.storage.local.get("brickFeedback");
@@ -276,7 +276,7 @@
       /* defaults */
     }
     if (!fb.border) return;
-    window.BrickOverlay.show({
+    window.BulworkOverlay.show({
       color: phase === "work" ? WORK_COLOR : BREAK_COLOR,
       border: 6,
       duration: Math.max(1, Number(fb.borderSec) || 10) * 1000,
@@ -287,7 +287,7 @@
   // "Time's up on A — start B?" with Advance / Stay (or Undo after an auto-switch). Reuses the
   // shared overlay; buttons hit the background's plan routes.
   const showSwitchCard = (msg) => {
-    if (!window.BrickOverlay) return;
+    if (!window.BulworkOverlay) return;
     const BTN = {
       advance: {
         label: "Advance →",
@@ -307,10 +307,10 @@
       },
       stay: { label: "Stay", kind: "stay", onClick: () => removeOverlay() },
     };
-    window.BrickOverlay.show({
+    window.BulworkOverlay.show({
       card: {
         corner: true,
-        tag: "■ BRICK MODE",
+        tag: "■ BULWORK MODE",
         title: msg.title || "Plan update",
         body: msg.body || "",
         buttons: (msg.actions || ["stay"]).map((a) => BTN[a]).filter(Boolean),

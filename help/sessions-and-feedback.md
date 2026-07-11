@@ -18,7 +18,7 @@ play reliably afterwards.
 ## "Just 1 more minute" — the grace overlay
 
 When work re-engages on a page you were already using and it's off-task, you get the soft "Back to
-BRICK MODE" prompt with **Just 1 more minute**. Taking it shows a red vignette with a 60-second
+BULWORK MODE" prompt with **Just 1 more minute**. Taking it shows a red vignette with a 60-second
 countdown chip; the page stays usable. When the countdown ends the page is re-checked — on-topic now
 clears it, still off-task re-prompts. The chip itself is clickable ("tap for back to work") to end
 grace early at any time.

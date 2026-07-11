@@ -3,9 +3,10 @@ import { fileURLToPath } from "node:url";
 import { join } from "node:path";
 import { DEFAULT_TIERS } from "./tiers.js";
 import type { TierConfig } from "./tiers.js";
+import { bulworkEnv } from "./env.js";
 
 const DATA_DIR =
-  process.env.BRICK_DATA_DIR ?? fileURLToPath(new URL("../.data/", import.meta.url));
+  bulworkEnv("DATA_DIR") ?? fileURLToPath(new URL("../.data/", import.meta.url));
 const TIERS_PATH = join(DATA_DIR, "tiers.json");
 const SETTINGS_PATH = join(DATA_DIR, "settings.json");
 
@@ -58,7 +59,7 @@ export async function saveTiers(cfg: { tier1?: unknown; tier3?: unknown }): Prom
 
 // Persisted app settings (`.data/settings.json`) — the options page's home for non-tier config.
 // R2 adds `model`; 0.7/0.8 add the per-page + rabbit-hole knobs; Epic B will add advanceMode here.
-export interface BrickSettings {
+export interface BulworkSettings {
   /** Adjudicator model id sent per-request (OpenRouter or Anthropic id). Unset → env/provider seed. */
   model?: string;
   /** Domains judged per-page rather than per-domain (0.7). Unset → defaults applied by the client. */
@@ -89,8 +90,8 @@ function domainList(v: unknown): string[] | undefined {
   return out;
 }
 
-function sanitizeSettings(p: Record<string, unknown>): BrickSettings {
-  const out: BrickSettings = {};
+function sanitizeSettings(p: Record<string, unknown>): BulworkSettings {
+  const out: BulworkSettings = {};
   // An empty/blank model is treated as "unset" (revert to the env/provider default seed).
   if (typeof p.model === "string" && p.model.trim()) out.model = p.model.trim().slice(0, 200);
   const page = domainList(p.pageScopeDomains);
@@ -108,7 +109,7 @@ function sanitizeSettings(p: Record<string, unknown>): BrickSettings {
 }
 
 /** Load persisted settings. Missing/invalid file → empty settings (never throws). */
-export async function loadSettings(): Promise<BrickSettings> {
+export async function loadSettings(): Promise<BulworkSettings> {
   try {
     const parsed: unknown = JSON.parse(await readFile(SETTINGS_PATH, "utf8"));
     if (parsed && typeof parsed === "object") return sanitizeSettings(parsed as Record<string, unknown>);
@@ -119,7 +120,7 @@ export async function loadSettings(): Promise<BrickSettings> {
 }
 
 /** Merge a partial patch into persisted settings and return the merged, sanitized result. */
-export async function saveSettings(patch: Partial<BrickSettings>): Promise<BrickSettings> {
+export async function saveSettings(patch: Partial<BulworkSettings>): Promise<BulworkSettings> {
   const current = await loadSettings();
   const merged = sanitizeSettings({ ...current, ...patch } as Record<string, unknown>);
   await mkdir(DATA_DIR, { recursive: true });

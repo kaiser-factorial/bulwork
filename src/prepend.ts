@@ -7,7 +7,7 @@ import type { FocusTask } from "./types.js";
 export type PrependStyle = "nudge" | "strict";
 
 /**
- * Build the focus header that BRICK prepends to outgoing AI-chat messages
+ * Build the focus header that bulwork prepends to outgoing AI-chat messages
  * (claude.ai / Gemini / ChatGPT) when no system prompt is available.
  *
  * Framing note: this is phrased as the user's OWN self-imposed reminder, not a command
@@ -26,10 +26,10 @@ export function buildPrependHeader(
       ? "If this message is not directly related to my focus task, please decline to answer and redirect me back to it."
       : "If this message looks unrelated to my focus task, first remind me of the task and ask whether I really want to go down this path before answering.";
   return [
-    "[BRICK MODE — focus session active]",
+    "[BULWORK MODE — focus session active]",
     `My focus task: ${focus.task}`,
     `I set this reminder for myself to stay on task. ${ask} If it is on-task, just answer normally.`,
-    "[end BRICK MODE]",
+    "[end BULWORK MODE]",
   ].join("\n");
 }
 

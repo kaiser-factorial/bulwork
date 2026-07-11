@@ -6,10 +6,10 @@
   { "task": "Fix the OAuth redirect bug in the ledger desktop build", "url": "https://www.netflix.com/browse", "expected": "block" },
   { "task": "Fix the OAuth redirect bug in the ledger desktop build", "url": "https://news.ycombinator.com", "expected": "block" },
 
-  { "task": "Write the BRICK MODE adjudicator prototype in TypeScript", "url": "https://docs.anthropic.com/en/api/messages", "expected": "allow" },
-  { "task": "Write the BRICK MODE adjudicator prototype in TypeScript", "url": "https://www.typescriptlang.org/docs/handbook/utility-types.html", "expected": "allow" },
-  { "task": "Write the BRICK MODE adjudicator prototype in TypeScript", "url": "https://www.instagram.com/", "expected": "block" },
-  { "task": "Write the BRICK MODE adjudicator prototype in TypeScript", "url": "https://www.youtube.com/feed/trending", "expected": "block" },
+  { "task": "Write the BULWORK MODE adjudicator prototype in TypeScript", "url": "https://docs.anthropic.com/en/api/messages", "expected": "allow" },
+  { "task": "Write the BULWORK MODE adjudicator prototype in TypeScript", "url": "https://www.typescriptlang.org/docs/handbook/utility-types.html", "expected": "allow" },
+  { "task": "Write the BULWORK MODE adjudicator prototype in TypeScript", "url": "https://www.instagram.com/", "expected": "block" },
+  { "task": "Write the BULWORK MODE adjudicator prototype in TypeScript", "url": "https://www.youtube.com/feed/trending", "expected": "block" },
 
   { "task": "Prepare the Q3 VAT return", "url": "https://www.gov.uk/vat-returns", "expected": "allow" },
   { "task": "Prepare the Q3 VAT return", "url": "https://x.com/home", "expected": "block" },
@@ -23,9 +23,9 @@
   { "task": "Fix the OAuth redirect bug in the ledger desktop build", "url": "https://news.ycombinator.com/item?id=38000000", "title": "Show HN: a tiny OAuth2 PKCE helper for desktop apps", "expected": "allow" },
   { "task": "Fix the OAuth redirect bug in the ledger desktop build", "url": "https://www.reddit.com/r/oauth/comments/abc/redirect_uri_mismatch_on_localhost", "title": "redirect_uri mismatch on localhost — how I fixed it", "expected": "allow" },
 
-  { "task": "Write the BRICK MODE adjudicator prototype in TypeScript", "url": "https://github.com/anthropics/anthropic-sdk-typescript", "expected": "allow" },
-  { "task": "Write the BRICK MODE adjudicator prototype in TypeScript", "url": "https://www.reddit.com/r/typescript/comments/xyz/forced_tool_use_vs_structured_outputs", "title": "forced tool use vs structured outputs for guaranteed JSON?", "expected": "allow" },
-  { "task": "Write the BRICK MODE adjudicator prototype in TypeScript", "url": "https://www.youtube.com/watch?v=abcd1234", "title": "I tried living like a medieval peasant for a week", "expected": "block" },
+  { "task": "Write the BULWORK MODE adjudicator prototype in TypeScript", "url": "https://github.com/anthropics/anthropic-sdk-typescript", "expected": "allow" },
+  { "task": "Write the BULWORK MODE adjudicator prototype in TypeScript", "url": "https://www.reddit.com/r/typescript/comments/xyz/forced_tool_use_vs_structured_outputs", "title": "forced tool use vs structured outputs for guaranteed JSON?", "expected": "allow" },
+  { "task": "Write the BULWORK MODE adjudicator prototype in TypeScript", "url": "https://www.youtube.com/watch?v=abcd1234", "title": "I tried living like a medieval peasant for a week", "expected": "block" },
 
   { "task": "Draft the Q3 board update memo", "url": "https://docs.google.com/document/d/1a2b3c/edit", "expected": "allow" },
   { "task": "Draft the Q3 board update memo", "url": "https://www.linkedin.com/feed/", "expected": "block" }

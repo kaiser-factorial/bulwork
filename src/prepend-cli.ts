@@ -9,10 +9,10 @@ try {
   /* rely on ambient env */
 }
 
-const HELP = `brick-prepend — build the BRICK MODE focus header for AI-chat messages
+const HELP = `bulwork-prepend — build the BULWORK MODE focus header for AI-chat messages
 
 Usage:
-  brick-prepend [options]
+  bulwork-prepend [options]
 
 Options:
   --task "<text>"      Free-typed focus task
@@ -25,9 +25,9 @@ Options:
 Choose a focus (--task / --project / --last) — with none, lists your projects to pick from.
 
 Examples:
-  brick-prepend --task "Prepare the Q3 VAT return"
-  brick-prepend --last
-  brick-prepend --project <id> --message "what's a good pasta recipe?"
+  bulwork-prepend --task "Prepare the Q3 VAT return"
+  bulwork-prepend --last
+  bulwork-prepend --project <id> --message "what's a good pasta recipe?"
 `;
 
 async function main(): Promise<void> {
@@ -62,6 +62,6 @@ async function main(): Promise<void> {
 
 main().catch((err: unknown) => {
   const msg = err instanceof Error ? err.message : String(err);
-  process.stderr.write(`brick-prepend: ${msg}\n`);
+  process.stderr.write(`bulwork-prepend: ${msg}\n`);
   process.exitCode = 1;
 });

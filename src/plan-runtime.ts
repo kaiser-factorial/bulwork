@@ -6,6 +6,7 @@ import { endSession, startSession } from "./session.js";
 import { makeEvaluator } from "./watchers.js";
 import type { Evaluator } from "./watchers.js";
 import type { FocusTask, Step, SwapMode, WorkBlock, WorkloadPlan } from "./types.js";
+import { bulworkEnv } from "./env.js";
 
 // PlanRuntime (Epic A3): owns the queue; the ACTIVE BLOCK delegates to the existing single-focus
 // FocusSession — so the adjudicator, tiers, learned decisions, and Pomodoro all keep working
@@ -16,8 +17,8 @@ import type { FocusTask, Step, SwapMode, WorkBlock, WorkloadPlan } from "./types
  *  levels drive notifications, the queue still only moves per the swap policy. */
 export type EscalationLevel = "none" | "t-minus" | "t-0" | "grace";
 
-const TMINUS_MIN = Number(process.env.BRICK_TMINUS_MIN ?? "5"); // heads-up this long before budget end
-const GRACE_MIN = Number(process.env.BRICK_GRACE_MIN ?? "5"); // T-0 → grace re-nudge after this long over
+const TMINUS_MIN = Number(bulworkEnv("TMINUS_MIN") ?? "5"); // heads-up this long before budget end
+const GRACE_MIN = Number(bulworkEnv("GRACE_MIN") ?? "5"); // T-0 → grace re-nudge after this long over
 
 export function escalationFor(elapsedMinutes: number, budgetMinutes?: number): EscalationLevel {
   if (budgetMinutes == null) return "none";
@@ -117,7 +118,7 @@ let stateVersion = 0; // monotonic per process; bumps on every plan mutation
 let pomodoro: { workMinutes?: number; breakMinutes?: number } = {};
 
 // ---------- watcher loop state (Epic B1/B3) ----------
-const WATCH_INTERVAL_MS = Math.max(100, Number(process.env.BRICK_WATCH_INTERVAL_MS ?? "30000"));
+const WATCH_INTERVAL_MS = Math.max(100, Number(bulworkEnv("WATCH_INTERVAL_MS") ?? "30000"));
 let evaluators: Array<{ index: number; ev: Evaluator }> = []; // for the active block's conditions
 let watchTimer: NodeJS.Timeout | null = null;
 let tickInFlight = false;

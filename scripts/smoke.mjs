@@ -1,7 +1,7 @@
 // Service smoke test: unit-tests the pure precedence resolver, then spawns dist/server.js on a test
 // port, exercises the endpoints, asserts. Run: npm run smoke  (requires a built dist/).
 //
-// Hermetic + key-free by design: the server runs against a throwaway BRICK_DATA_DIR (fresh default
+// Hermetic + key-free by design: the server runs against a throwaway BULWORK_DATA_DIR (fresh default
 // tiers, empty learned store) and every check drives the focus with an explicit `task` — so the
 // suite needs neither a reachable ledger binary nor an API key (tier-2 falls to the stub path, and
 // learned/tier short-circuits never call a model).
@@ -28,8 +28,9 @@ const PORT = process.env.SMOKE_PORT ?? "7399";
 const BASE = `http://127.0.0.1:${PORT}`;
 const TASK = "ship the ledger release"; // explicit focus → no ledger binary needed
 
-// The service requires X-Brick-Client (CSRF defense); local callers set it explicitly.
-const H = { "content-type": "application/json", "x-brick-client": "smoke" };
+// The service requires X-Bulwork-Client (or the deprecated X-Brick-Client) (CSRF defense); local
+// callers set it explicitly.
+const H = { "content-type": "application/json", "x-bulwork-client": "smoke" };
 const post = (path, body) =>
   fetch(BASE + path, { method: "POST", headers: H, body: JSON.stringify(body ?? {}) }).then((r) =>
     r.json(),
@@ -85,7 +86,7 @@ const QMAP = [
   ["What does the remember checkbox on the clarify card do?", "gatekeeper.md"],
   ["Why is there a pause symbol on the badge?", null], // grace pause — sessions or getting-started
   ["How do I turn on sound cues?", "sessions-and-feedback.md"],
-  ["Where does BRICK store its data?", "service-and-troubleshooting.md"],
+  ["Where does BULWORK store its data?", "service-and-troubleshooting.md"],
   ["How does the rabbit hole nudge work?", "gatekeeper.md"],
 ];
 for (const [q, doc] of QMAP) {
@@ -217,7 +218,7 @@ check(
 }
 
 // ---------- unit: evaluators on a real scratch git repo + the fake ledger (Epic B1) ----------
-const gitDir = await mkdtemp(join(tmpdir(), "brick-git-"));
+const gitDir = await mkdtemp(join(tmpdir(), "bulwork-git-"));
 const g = (...args) =>
   execFileSync("git", ["-C", gitDir, "-c", "user.email=s@s", "-c", "user.name=smoke", ...args], { stdio: "pipe" });
 g("init", "-q");
@@ -247,13 +248,13 @@ g("commit", "--allow-empty", "-q", "-m", "init");
   check("git broken repoPath: never met (fail-open)", (await ev3.poll()) === false);
 }
 {
-  // command evaluator: OFF unless BRICK_ALLOW_COMMAND_CONDITIONS is set.
+  // command evaluator: OFF unless BULWORK_ALLOW_COMMAND_CONDITIONS is set.
   const cond = { type: "command", cmd: "true", met: false };
   const ev = makeEvaluator(cond);
   await ev.arm({}, cond);
-  delete process.env.BRICK_ALLOW_COMMAND_CONDITIONS;
+  delete process.env.BULWORK_ALLOW_COMMAND_CONDITIONS;
   check("command evaluator gated off by default", (await ev.poll()) === false);
-  process.env.BRICK_ALLOW_COMMAND_CONDITIONS = "1";
+  process.env.BULWORK_ALLOW_COMMAND_CONDITIONS = "1";
   check("command evaluator: exit 0 met when enabled", (await ev.poll()) === true);
   const fail = { type: "command", cmd: "exit 3", met: false };
   const ev2 = makeEvaluator(fail);
@@ -263,7 +264,7 @@ g("commit", "--allow-empty", "-q", "-m", "init");
   const ev3 = makeEvaluator(expected);
   await ev3.arm({}, expected);
   check("command evaluator: expectExit matches non-zero", (await ev3.poll()) === true);
-  delete process.env.BRICK_ALLOW_COMMAND_CONDITIONS;
+  delete process.env.BULWORK_ALLOW_COMMAND_CONDITIONS;
 }
 {
   // ledger evaluator against the fake LEDGER_BIN: next-action change is the completion signal.
@@ -289,14 +290,14 @@ function spawnServer(dir) {
     // empty-string var also blocks process.loadEnvFile from re-populating it (no override).
     env: {
       ...process.env,
-      BRICK_PORT: PORT,
-      BRICK_DATA_DIR: dir,
+      BULWORK_PORT: PORT,
+      BULWORK_DATA_DIR: dir,
       ANTHROPIC_API_KEY: "",
       OPENROUTER_API_KEY: "",
-      BRICK_WATCH_INTERVAL_MS: "150", // fast watcher ticks so Epic-B checks settle in <1s
+      BULWORK_WATCH_INTERVAL_MS: "150", // fast watcher ticks so Epic-B checks settle in <1s
       LEDGER_BIN: FAKE_LEDGER.bin,
-      BRICK_TMINUS_MIN: "0.005", // 0.3s — fractional escalation thresholds for the C1 checks
-      BRICK_GRACE_MIN: "0.005",
+      BULWORK_TMINUS_MIN: "0.005", // 0.3s — fractional escalation thresholds for the C1 checks
+      BULWORK_GRACE_MIN: "0.005",
     },
     stdio: "ignore",
   });
@@ -323,13 +324,13 @@ async function restartServer() {
 }
 
 try {
-  dataDir = await mkdtemp(join(tmpdir(), "brick-smoke-"));
+  dataDir = await mkdtemp(join(tmpdir(), "bulwork-smoke-"));
   srv = spawnServer(dataDir);
   await waitHealthy();
 
   // Auth gate: a request without the header is rejected.
   const noauth = await fetch(BASE + "/health");
-  check("rejects missing X-Brick-Client", noauth.status === 403);
+  check("rejects missing X-Bulwork-Client/X-Brick-Client", noauth.status === 403);
 
   const health = await get("/health");
   check("health ok", health.ok === true);
@@ -419,7 +420,7 @@ try {
   );
 
   const prep = await post("/prepend", {});
-  check("prepend uses session focus", typeof prep.header === "string" && prep.header.includes("BRICK MODE"));
+  check("prepend uses session focus", typeof prep.header === "string" && prep.header.includes("BULWORK MODE"));
 
   await post("/session/stop", {});
   const after = await get("/session");

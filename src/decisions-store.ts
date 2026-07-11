@@ -3,6 +3,7 @@ import { fileURLToPath } from "node:url";
 import { join } from "node:path";
 import type { Tier } from "./tiers.js";
 import type { FocusTask } from "./types.js";
+import { bulworkEnv } from "./env.js";
 
 // The learned-decision store (Epic 0.2): remembers your clarify answers and corrections per
 // (focusKey, scope, unit) so the same target isn't re-adjudicated under the same focus — which
@@ -22,7 +23,7 @@ export interface LearnedDecision {
 }
 
 const DATA_DIR =
-  process.env.BRICK_DATA_DIR ?? fileURLToPath(new URL("../.data/", import.meta.url));
+  bulworkEnv("DATA_DIR") ?? fileURLToPath(new URL("../.data/", import.meta.url));
 const DECISIONS_PATH = join(DATA_DIR, "decisions.json");
 const MAX_ENTRIES = 5000; // bound the persisted store
 
